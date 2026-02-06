@@ -1,0 +1,29 @@
+# Visual Studio temp files
+.vs/
+*.suo
+*.user
+*.vcxproj.user
+
+# Build outputs
+Debug/
+Release/
+x64/
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.log
+*.tlog/
+*.lastbuildstate
+*.pch
+*.ipch
+
+# VS indexes
+*.vsidx
+
+# Build recipes
+*.dll.recipe
+
+# Other
+*.Build.CppClean.log
+*.FileListAbsolute.txt
