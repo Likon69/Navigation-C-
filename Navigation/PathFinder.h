@@ -57,7 +57,6 @@ using Movement::PointsArray;
 #define MAX_POINT_PATH_LENGTH   740//74
 
 #define SMOOTH_PATH_STEP_SIZE   4.0f
-#define SMOOTH_PATH_SLOP        0.3f
 
 #define VERTEX_SIZE       3
 #define INVALID_POLYREF   0
@@ -66,26 +65,6 @@ using Movement::PointsArray;
 // Format: {horizontal_radius, vertical_range, horizontal_radius}
 // Valeurs {3, 20, 3} permettent de gérer les caves et surfaces superposées
 static const float POLY_SEARCH_EXTENTS[3] = {3.0f, 20.0f, 3.0f};
-
-// defined in DBC and left shifted for flag usage
-#define MAP_LIQUID_TYPE_NO_WATER    0x00
-#define MAP_LIQUID_TYPE_MAGMA       0x01
-#define MAP_LIQUID_TYPE_OCEAN       0x02
-#define MAP_LIQUID_TYPE_SLIME       0x04
-#define MAP_LIQUID_TYPE_WATER       0x08
-
-#define MAP_ALL_LIQUIDS   (MAP_LIQUID_TYPE_WATER | MAP_LIQUID_TYPE_MAGMA | MAP_LIQUID_TYPE_OCEAN | MAP_LIQUID_TYPE_SLIME)
-
-#define MAP_LIQUID_TYPE_DARK_WATER  0x10
-#define MAP_LIQUID_TYPE_WMO_WATER   0x20
-
-struct GridMapLiquidData
-{
-	unsigned int type_flags;
-	unsigned int entry;
-	float level;
-	float depth_level;
-};
 
 enum PathType
 {
@@ -187,7 +166,6 @@ private:
 
 	bool inRange(const Vector3& p1, const Vector3& p2, float r, float h) const;
 	float dist3DSqr(const Vector3& p1, const Vector3& p2) const;
-	bool inRangeYZX(const float* v1, const float* v2, float r, float h) const;
 
 	dtPolyRef getPathPolyByPosition(const dtPolyRef* polyPath, unsigned int polyPathSize, const float* point, float* distance = NULL) const;
 	dtPolyRef getPolyByLocation(const float* point, float* distance) const;
@@ -205,15 +183,8 @@ private:
 	unsigned char ResolveAreaType(dtPolyRef polyRef) const;
 	unsigned char ResolveAbilityFlags(dtPolyRef polyRef) const;
 
-	// smooth path aux functions
-	unsigned int fixupCorridor(dtPolyRef* path, unsigned int npath, unsigned int maxPath,
-		const dtPolyRef* visited, unsigned int nvisited);
-	bool getSteerTarget(const float* startPos, const float* endPos, float minTargetDist,
-		const dtPolyRef* path, unsigned int pathSize, float* steerPos,
-		unsigned char& steerPosFlag, dtPolyRef& steerPosRef);
-	dtStatus findSmoothPath(const float* startPos, const float* endPos,
-		const dtPolyRef* polyPath, unsigned int polyPathSize,
-		float* smoothPath, int* smoothPathSize, unsigned int smoothPathMaxSize);
+	// NEW-6: Removed smooth path aux functions (fixupCorridor, getSteerTarget, findSmoothPath)
+	// Dead code — BuildPointPath uses findStraightPath() directly.
 	
 	// QUICK WIN #3: Anti-stuck state tracking
 	Vector3 _lastStuckCheckPos;

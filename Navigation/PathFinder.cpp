@@ -1,4 +1,4 @@
-﻿/**
+/**
 * MaNGOS is a full featured server for World of Warcraft, supporting
 * the following clients: 1.12.x, 2.4.3, 3.3.5a, 4.3.4a and 5.4.8
 *
@@ -465,7 +465,7 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
 		m_pathPoints[i] = Vector3(
 			straightPathPoints[i * VERTEX_SIZE + 2],
 			straightPathPoints[i * VERTEX_SIZE],
-			straightPathPoints[i * VERTEX_SIZE + 1]);
+			straightPathPoints[i * VERTEX_SIZE + 1] + 0.5f); // Height correction: lift waypoints 0.5yd above navmesh surface
 	}
 
 	const unsigned int pointCount = static_cast<unsigned int>(straightCount);
@@ -603,24 +603,35 @@ void PathFinder::updateFilter(bool isSwimming, float x, float y, float z)
 
 NavTerrain PathFinder::getNavTerrain(float x, float y, float z)
 {
-	GridMapLiquidData data;
-	//m_sourceUnit->GetTerrain()->getLiquidStatus(x, y, z, MAP_ALL_LIQUIDS, &data);
+	// NEW-1: Use navmesh polygon flags instead of server-side terrain data.
+	// Trinity mmaps encode liquid type into poly flags during generation:
+	// NAV_GROUND=0x01, NAV_MAGMA=0x02, NAV_SLIME=0x04, NAV_WATER=0x08.
+	// Since we're an external bot without access to GetTerrain()->getLiquidStatus(),
+	// we query the navmesh directly for the polygon at this position.
 
-	// TODO !!!
-	return NAV_GROUND;
+	float point[VERTEX_SIZE] = { y, z, x }; // WoW (X,Y,Z) → Detour (Y,Z,X)
+	float extents[VERTEX_SIZE] = { 3.0f, 5.0f, 3.0f };
+	dtPolyRef polyRef = 0;
+	float nearestPoint[VERTEX_SIZE];
 
-	switch (data.type_flags)
-	{
-	case MAP_LIQUID_TYPE_WATER:
-	case MAP_LIQUID_TYPE_OCEAN:
-		return NAV_WATER;
-	case MAP_LIQUID_TYPE_MAGMA:
-		return NAV_MAGMA;
-	case MAP_LIQUID_TYPE_SLIME:
-		return NAV_SLIME;
-	default:
+	dtStatus status = m_navMeshQuery->findNearestPoly(point, extents, m_filter, &polyRef, nearestPoint);
+	if (dtStatusFailed(status) || polyRef == 0)
+		return NAV_GROUND; // Fallback if no poly found
+
+	unsigned short polyFlags = 0;
+	status = m_navMesh->getPolyFlags(polyRef, &polyFlags);
+	if (dtStatusFailed(status))
 		return NAV_GROUND;
-	}
+
+	// Poly flags directly contain NavTerrain values from mmap generation
+	if (polyFlags & NAV_WATER)
+		return NAV_WATER;
+	if (polyFlags & NAV_MAGMA)
+		return NAV_MAGMA;
+	if (polyFlags & NAV_SLIME)
+		return NAV_SLIME;
+
+	return NAV_GROUND;
 }
 
 bool PathFinder::HaveTile(const Vector3& p) const
@@ -632,257 +643,16 @@ bool PathFinder::HaveTile(const Vector3& p) const
 
     if (m_navMesh->getTileAt(tx, ty, 0) == NULL)
     {
-        std::ofstream myfile;
-        myfile.open("C:\\Users\\Drew\\Repos\\bloog-bot-v2\\Bot\\navigationDebug.txt");
-        myfile << "Tile failed to load: " << tx << "," << ty << std::endl;
-        myfile.close();
+        // Phase 9: Removed hardcoded debug file write (was "C:\Users\Drew\..." path)
+        // Tile miss is expected during streaming - caller handles gracefully
     }
         
     return (m_navMesh->getTileAt(tx, ty, 0) != NULL);
 }
-
-unsigned int PathFinder::fixupCorridor(dtPolyRef* path, unsigned int npath, unsigned int maxPath,
-	const dtPolyRef* visited, unsigned int nvisited)
-{
-	int furthestPath = -1;
-	int furthestVisited = -1;
-
-	// Find furthest common polygon.
-	for (int i = npath - 1; i >= 0; --i)
-	{
-		bool found = false;
-		for (int j = nvisited - 1; j >= 0; --j)
-		{
-			if (path[i] == visited[j])
-			{
-				furthestPath = i;
-				furthestVisited = j;
-				found = true;
-			}
-		}
-		if (found)
-		{
-			break;
-		}
-	}
-
-	// If no intersection found just return current path.
-	if (furthestPath == -1 || furthestVisited == -1)
-	{
-		return npath;
-	}
-
-	// Concatenate paths.
-
-	// Adjust beginning of the buffer to include the visited.
-	unsigned int req = nvisited - furthestVisited;
-	unsigned int orig = unsigned int(furthestPath + 1) < npath ? furthestPath + 1 : npath;
-	unsigned int size = npath > orig ? npath - orig : 0;
-	if (req + size > maxPath)
-	{
-		size = maxPath - req;
-	}
-
-	if (size)
-	{
-		memmove(path + req, path + orig, size * sizeof(dtPolyRef));
-	}
-
-	// Store visited
-	for (unsigned int i = 0; i < req; ++i)
-	{
-		path[i] = visited[(nvisited - 1) - i];
-	}
-
-	return req + size;
-}
-
-bool PathFinder::getSteerTarget(const float* startPos, const float* endPos,
-	float minTargetDist, const dtPolyRef* path, unsigned int pathSize,
-	float* steerPos, unsigned char& steerPosFlag, dtPolyRef& steerPosRef)
-{
-	// Find steer target.
-	static const unsigned int MAX_STEER_POINTS = 3;
-	float steerPath[MAX_STEER_POINTS * VERTEX_SIZE];
-	unsigned char steerPathFlags[MAX_STEER_POINTS];
-	dtPolyRef steerPathPolys[MAX_STEER_POINTS];
-	unsigned int nsteerPath = 0;
-	dtStatus dtResult = m_navMeshQuery->findStraightPath(startPos, endPos, path, pathSize,
-		steerPath, steerPathFlags, steerPathPolys, (int*)&nsteerPath, MAX_STEER_POINTS);
-	if (!nsteerPath || dtStatusFailed(dtResult))
-	{
-		return false;
-	}
-
-	// Find vertex far enough to steer to.
-	unsigned int ns = 0;
-	while (ns < nsteerPath)
-	{
-		// Stop at Off-Mesh link or when point is further than slop away.
-		if ((steerPathFlags[ns] & DT_STRAIGHTPATH_OFFMESH_CONNECTION) ||
-			!inRangeYZX(&steerPath[ns * VERTEX_SIZE], startPos, minTargetDist, 1000.0f))
-		{
-			break;
-		}
-		++ns;
-	}
-	// Failed to find good point to steer to.
-	if (ns >= nsteerPath)
-	{
-		return false;
-	}
-
-	dtVcopy(steerPos, &steerPath[ns * VERTEX_SIZE]);
-	steerPos[1] = startPos[1];  // keep Z value
-	steerPosFlag = steerPathFlags[ns];
-	steerPosRef = steerPathPolys[ns];
-
-	return true;
-}
-
-dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
-	const dtPolyRef* polyPath, unsigned int polyPathSize,
-	float* smoothPath, int* smoothPathSize, unsigned int maxSmoothPathSize)
-{
-	*smoothPathSize = 0;
-	unsigned int nsmoothPath = 0;
-
-	dtPolyRef polys[MAX_PATH_LENGTH];
-	memcpy(polys, polyPath, sizeof(dtPolyRef)*polyPathSize);
-	unsigned int npolys = polyPathSize;
-
-	float iterPos[VERTEX_SIZE], targetPos[VERTEX_SIZE];
-	dtStatus dtResult = m_navMeshQuery->closestPointOnPolyBoundary(polys[0], startPos, iterPos);
-	if (dtStatusFailed(dtResult))
-	{
-		return DT_FAILURE;
-	}
-
-	dtResult = m_navMeshQuery->closestPointOnPolyBoundary(polys[npolys - 1], endPos, targetPos);
-	if (dtStatusFailed(dtResult))
-	{
-		return DT_FAILURE;
-	}
-
-	dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
-	++nsmoothPath;
-
-	// Move towards target a small advancement at a time until target reached or
-	// when ran out of memory to store the path.
-	while (npolys && nsmoothPath < maxSmoothPathSize)
-	{
-		// Find location to steer towards.
-		float steerPos[VERTEX_SIZE];
-		unsigned char steerPosFlag;
-		dtPolyRef steerPosRef = INVALID_POLYREF;
-
-		if (!getSteerTarget(iterPos, targetPos, SMOOTH_PATH_SLOP, polys, npolys, steerPos, steerPosFlag, steerPosRef))
-		{
-			break;
-		}
-
-		bool endOfPath = (steerPosFlag & DT_STRAIGHTPATH_END);
-		bool offMeshConnection = (steerPosFlag & DT_STRAIGHTPATH_OFFMESH_CONNECTION);
-
-		// Find movement delta.
-		float delta[VERTEX_SIZE];
-		dtVsub(delta, steerPos, iterPos);
-		float len = sqrtf(dtVdot(delta, delta));
-		// If the steer target is end of path or off-mesh link, do not move past the location.
-		if ((endOfPath || offMeshConnection) && len < SMOOTH_PATH_STEP_SIZE)
-		{
-			len = 1.0f;
-		}
-		else
-		{
-			len = SMOOTH_PATH_STEP_SIZE / len;
-		}
-
-		float moveTgt[VERTEX_SIZE];
-		dtVmad(moveTgt, iterPos, delta, len);
-
-		// Move
-		float result[VERTEX_SIZE];
-		const static unsigned int MAX_VISIT_POLY = 16;
-	dtPolyRef visited[MAX_VISIT_POLY];
-
-	unsigned int nvisited = 0;
-	m_navMeshQuery->moveAlongSurface(polys[0], iterPos, moveTgt, m_filter, result, visited, (int*)&nvisited, MAX_VISIT_POLY);
-	npolys = fixupCorridor(polys, npolys, MAX_PATH_LENGTH, visited, nvisited);
-
-	m_navMeshQuery->getPolyHeight(polys[0], result, &result[1]);
-	result[1] += 0.5f;
-	dtVcopy(iterPos, result);		// Handle end of path and off-mesh links when close enough.
-		if (endOfPath && inRangeYZX(iterPos, steerPos, SMOOTH_PATH_SLOP, 1.0f))
-		{
-			// Reached end of path.
-			dtVcopy(iterPos, targetPos);
-			if (nsmoothPath < maxSmoothPathSize)
-			{
-				dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
-				++nsmoothPath;
-			}
-			break;
-		}
-		else if (offMeshConnection && inRangeYZX(iterPos, steerPos, SMOOTH_PATH_SLOP, 1.0f))
-		{
-			// Advance the path up to and over the off-mesh connection.
-			dtPolyRef prevRef = INVALID_POLYREF;
-			dtPolyRef polyRef = polys[0];
-			unsigned int npos = 0;
-			while (npos < npolys && polyRef != steerPosRef)
-			{
-				prevRef = polyRef;
-				polyRef = polys[npos];
-				++npos;
-			}
-
-			for (unsigned int i = npos; i < npolys; ++i)
-			{
-				polys[i - npos] = polys[i];
-			}
-
-			npolys -= npos;
-
-			// Handle the connection.
-			float startPos[VERTEX_SIZE], endPos[VERTEX_SIZE];
-			dtResult = m_navMesh->getOffMeshConnectionPolyEndPoints(prevRef, polyRef, startPos, endPos);
-			if (dtStatusSucceed(dtResult))
-			{
-				if (nsmoothPath < maxSmoothPathSize)
-				{
-					dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], startPos);
-					++nsmoothPath;
-				}
-				// Move position at the other side of the off-mesh link.
-				dtVcopy(iterPos, endPos);
-
-				m_navMeshQuery->getPolyHeight(polys[0], iterPos, &iterPos[1]);
-				iterPos[1] += 0.5f;
-			}
-		}
-
-		// Store results.
-		if (nsmoothPath < maxSmoothPathSize)
-		{
-			dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
-			++nsmoothPath;
-		}
-	}
-
-	*smoothPathSize = nsmoothPath;
-
-	// this is most likely a loop
-	return nsmoothPath < MAX_POINT_PATH_LENGTH ? DT_SUCCESS : DT_FAILURE;
-}
-
-bool PathFinder::inRangeYZX(const float* v1, const float* v2, float r, float h) const
-{
-	const float dx = v2[0] - v1[0];
-	const float dy = v2[1] - v1[1]; // elevation
-	const float dz = v2[2] - v1[2];
-	return (dx * dx + dz * dz) < r * r && fabsf(dy) < h;
-}
+// NEW-6: Removed fixupCorridor, getSteerTarget, findSmoothPath, and inRangeYZX
+// These ~240 lines of dead code were never called by BuildPointPath.
+// BuildPointPath uses dtNavMeshQuery::findStraightPath() directly for path funneling.
+// The smooth path algorithm was an older iterative approach that was superseded.
 
 bool PathFinder::inRange(const Vector3& p1, const Vector3& p2, float r, float h) const
 {

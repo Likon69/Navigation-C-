@@ -357,8 +357,8 @@ bool Navigation::FindNearestPoly(unsigned int mapId, XYZ center, float searchRad
     float nearestPt[3];
     dtPolyRef nearestRef;
     
-    dtQueryFilter filter;
-    dtStatus status = query->findNearestPoly(centerPos, extents, &filter, &nearestRef, nearestPt);
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findNearestPoly(centerPos, extents, &_defaultFilter, &nearestRef, nearestPt);
     
     if (dtStatusSucceed(status) && nearestRef != 0)
     {
@@ -383,8 +383,8 @@ int Navigation::FindPolysAroundCircle(unsigned int mapId, XYZ center, float radi
     float extents[3] = { radius, radius, radius };
     dtPolyRef startRef;
     
-    dtQueryFilter filter;
-    dtStatus status = query->findNearestPoly(centerPos, extents, &filter, &startRef, nullptr);
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findNearestPoly(centerPos, extents, &_defaultFilter, &startRef, nullptr);
     if (dtStatusFailed(status) || startRef == 0) return 0;
     
     dtPolyRef* resultRefs = new dtPolyRef[maxResults];
@@ -392,7 +392,7 @@ int Navigation::FindPolysAroundCircle(unsigned int mapId, XYZ center, float radi
     float* resultCosts = new float[maxResults];
     int resultCount = 0;
     
-    status = query->findPolysAroundCircle(startRef, centerPos, radius, &filter, 
+    status = query->findPolysAroundCircle(startRef, centerPos, radius, &_defaultFilter, 
                                          resultRefs, parentRefs, resultCosts, &resultCount, maxResults);
     
     int actualResults = 0;
@@ -453,8 +453,8 @@ float Navigation::FindDistanceToWall(unsigned int mapId, XYZ position, float max
     float extents[3] = { maxRadius, maxRadius, maxRadius };
     dtPolyRef startRef;
     
-    dtQueryFilter filter;
-    dtStatus status = query->findNearestPoly(pos, extents, &filter, &startRef, nullptr);
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findNearestPoly(pos, extents, &_defaultFilter, &startRef, nullptr);
     if (dtStatusFailed(status) || startRef == 0)
     {
         return -1.0f;
@@ -464,7 +464,7 @@ float Navigation::FindDistanceToWall(unsigned int mapId, XYZ position, float max
     float hitPos[3];
     float hitNormal[3];
     
-    status = query->findDistanceToWall(startRef, pos, maxRadius, &filter, 
+    status = query->findDistanceToWall(startRef, pos, maxRadius, &_defaultFilter, 
                                       &hitDist, hitPos, hitNormal);
     
     if (dtStatusSucceed(status))
@@ -494,15 +494,15 @@ float Navigation::FindDistanceToWallEx(unsigned int mapId, XYZ position, float m
     float extents[3] = { maxRadius, maxRadius, maxRadius };
     dtPolyRef startRef;
     
-    dtQueryFilter filter;
-    dtStatus status = query->findNearestPoly(pos, extents, &filter, &startRef, nullptr);
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findNearestPoly(pos, extents, &_defaultFilter, &startRef, nullptr);
     if (dtStatusFailed(status) || startRef == 0) return -1.0f;
     
     float hitDist = 0.0f;
     float hitPos[3];
     float hitNormal[3];
     
-    status = query->findDistanceToWall(startRef, pos, maxRadius, &filter, 
+    status = query->findDistanceToWall(startRef, pos, maxRadius, &_defaultFilter, 
                                       &hitDist, hitPos, hitNormal);
     
     if (dtStatusSucceed(status))
@@ -542,8 +542,8 @@ float Navigation::FindDistanceToWallFromPoly(unsigned int mapId, dtPolyRef polyR
     float hitPos[3];
     float hitNormal[3];
     
-    dtQueryFilter filter;
-    dtStatus status = query->findDistanceToWall(polyRef, pos, maxRadius, &filter, 
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findDistanceToWall(polyRef, pos, maxRadius, &_defaultFilter, 
                                                &hitDist, hitPos, hitNormal);
     
     if (dtStatusSucceed(status))
@@ -575,8 +575,8 @@ bool Navigation::IsPointOnNavMesh(unsigned int mapId, XYZ point, float tolerance
     float extents[3] = { tolerance, tolerance, tolerance };
     dtPolyRef polyRef;
     
-    dtQueryFilter filter;
-    dtStatus status = query->findNearestPoly(pos, extents, &filter, &polyRef, nullptr);
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findNearestPoly(pos, extents, &_defaultFilter, &polyRef, nullptr);
     
     return dtStatusSucceed(status) && polyRef != 0;
 }
@@ -597,8 +597,8 @@ XYZ Navigation::FindRandomPointAroundCircle(unsigned int mapId, XYZ center, floa
     float extents[3] = { radius, radius, radius };
     dtPolyRef startRef;
     
-    dtQueryFilter filter;
-    dtStatus status = query->findNearestPoly(centerPos, extents, &filter, &startRef, nullptr);
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
+    dtStatus status = query->findNearestPoly(centerPos, extents, &_defaultFilter, &startRef, nullptr);
     if (dtStatusFailed(status) || startRef == 0) return result;
     
     dtPolyRef randomRef;
@@ -607,7 +607,7 @@ XYZ Navigation::FindRandomPointAroundCircle(unsigned int mapId, XYZ center, floa
     // Simple random function - you might want to improve this
     auto frand = []() -> float { return (float)rand() / RAND_MAX; };
     
-    status = query->findRandomPointAroundCircle(startRef, centerPos, radius, &filter, 
+    status = query->findRandomPointAroundCircle(startRef, centerPos, radius, &_defaultFilter, 
                                                frand, &randomRef, randomPt);
     
     if (dtStatusSucceed(status))
@@ -647,11 +647,11 @@ bool Navigation::HasLineOfSight(unsigned int mapId, XYZ start, XYZ end)
     float extents[3] = { NavConstants::kExtX, NavConstants::kExtY, NavConstants::kExtZ };
     
     dtPolyRef startRef, endRef;
-    dtQueryFilter filter;
     
+    // Phase 9: Use _defaultFilter to respect user-set area costs / blackspot exclusions
     // Find polygons for both points
-    dtStatus status1 = query->findNearestPoly(startPos, extents, &filter, &startRef, nullptr);
-    dtStatus status2 = query->findNearestPoly(endPos, extents, &filter, &endRef, nullptr);
+    dtStatus status1 = query->findNearestPoly(startPos, extents, &_defaultFilter, &startRef, nullptr);
+    dtStatus status2 = query->findNearestPoly(endPos, extents, &_defaultFilter, &endRef, nullptr);
     
     if (dtStatusFailed(status1) || dtStatusFailed(status2) || startRef == 0 || endRef == 0)
         return false;
@@ -682,7 +682,7 @@ bool Navigation::HasLineOfSight(unsigned int mapId, XYZ start, XYZ end)
             dtPolyRef path[256];
             int pathCount = 0;
             
-            dtStatus rayStatus = query->raycast(currentRef, currentPos, nextPos, &filter, 
+            dtStatus rayStatus = query->raycast(currentRef, currentPos, nextPos, &_defaultFilter, 
                                                &t, hitNormal, path, &pathCount, 256);
             
             // If we hit something (t < 1.0), no line of sight
@@ -709,7 +709,7 @@ bool Navigation::HasLineOfSight(unsigned int mapId, XYZ start, XYZ end)
         dtPolyRef path[256];
         int pathCount = 0;
         
-        dtStatus rayStatus = query->raycast(startRef, startPos, endPos, &filter, 
+        dtStatus rayStatus = query->raycast(startRef, startPos, endPos, &_defaultFilter, 
                                            &t, hitNormal, path, &pathCount, 256);
         
         // If t >= 1.0, we reached the end without hitting anything
@@ -1243,7 +1243,7 @@ XYZ* Navigation::FinalizeSlicedFindPath(int maxPathSize, int* length)
         _polysBuffer, pathCount,
         straightPath, straightPathFlags, straightPathRefs,
         &straightPathCount, MAX_POLYS_BUFFER,
-        DT_STRAIGHTPATH_AREA_CROSSINGS // Include area crossings for better path
+        DT_STRAIGHTPATH_ALL_CROSSINGS // NEW-3: ALL_CROSSINGS for consistency with BuildPointPath
     );
     
     // If funnel succeeds, use straight path; otherwise fall back to polygon centers
@@ -1269,10 +1269,6 @@ XYZ* Navigation::FinalizeSlicedFindPath(int maxPathSize, int* length)
     }
     else
     {
-        // FALLBACK: Use polygon centers (old method)
-        finalPathCount = pathCount;
-        path = new XYZ[finalPathCount];
-
         // FALLBACK: Use polygon centers (old method)
         finalPathCount = pathCount;
         path = new XYZ[finalPathCount];
