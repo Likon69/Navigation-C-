@@ -38,6 +38,22 @@ namespace
     {
         return static_cast<dtPolyRef>(ref);
     }
+
+    // WoW(X,Y,Z) -> Detour[Y,Z,X]  (same as Navigation.cpp helpers)
+    inline void WoWToDetour(const XYZ_C& wow, float det[3])
+    {
+        det[0] = wow.y;
+        det[1] = wow.z;
+        det[2] = wow.x;
+    }
+
+    // Detour[X,Y,Z] -> WoW(Z,X,Y)
+    inline void DetourToWoW(const float det[3], XYZ_C& wow)
+    {
+        wow.x = det[2];
+        wow.y = det[0];
+        wow.z = det[1];
+    }
 }
 
 NAV_API bool Nav_LoadMaps()
@@ -130,8 +146,10 @@ NAV_API bool Raycast_C(unsigned int mapId, XYZ_C start, XYZ_C end, XYZ_C* hitPos
 
     dtQueryFilter* filter = nav->GetDefaultFilter();
     float extents[3] = { 2.f, 4.f, 2.f };
-    float s[3] = { start.x, start.y, start.z };
-    float e[3] = { end.x, end.y, end.z };
+    // FIX: Convert WoW coordinates to Detour (WoW XYZ -> Detour YZX)
+    float s[3], e[3];
+    WoWToDetour(start, s);
+    WoWToDetour(end, e);
 
     dtPolyRef startRef = 0;
     if (dtStatusFailed(query->findNearestPoly(s, extents, filter, &startRef, 0))) return false;
@@ -149,7 +167,8 @@ NAV_API bool Raycast_C(unsigned int mapId, XYZ_C start, XYZ_C end, XYZ_C* hitPos
     hit[1] = s[1] + (e[1] - s[1]) * t;
     hit[2] = s[2] + (e[2] - s[2]) * t;
 
-    if (hitPos) { hitPos->x = hit[0]; hitPos->y = hit[1]; hitPos->z = hit[2]; }
+    // FIX: Convert Detour hit position back to WoW coordinates
+    if (hitPos) { DetourToWoW(hit, *hitPos); }
     if (tHit) *tHit = t;
     return true;
 }
@@ -174,12 +193,15 @@ NAV_API bool FindNearestPointEx_C(unsigned int mapId, XYZ_C position, float exte
 
     dtQueryFilter* filter = nav->GetDefaultFilter();
     float extents[3] = { extentX, extentY, extentZ };
-    float pos[3] = { position.x, position.y, position.z };
+    // FIX: Convert WoW coordinates to Detour (WoW XYZ -> Detour YZX)
+    float pos[3];
+    WoWToDetour(position, pos);
     float nearestPos[3]; dtPolyRef ref = 0;
 
     if (dtStatusFailed(query->findNearestPoly(pos, extents, filter, &ref, nearestPos))) return false;
 
-    if (nearest) { nearest->x = nearestPos[0]; nearest->y = nearestPos[1]; nearest->z = nearestPos[2]; }
+    // FIX: Convert Detour coordinates back to WoW
+    if (nearest) { DetourToWoW(nearestPos, *nearest); }
     return true;
 }
 
@@ -194,7 +216,9 @@ NAV_API bool FindRandomPoint_C(unsigned int mapId, XYZ_C center, float radius, X
 
     dtQueryFilter* filter = nav->GetDefaultFilter();
     float extents[3] = { 2.f, 4.f, 2.f };
-    float c[3] = { center.x, center.y, center.z };
+    // FIX: Convert WoW coordinates to Detour (WoW XYZ -> Detour YZX)
+    float c[3];
+    WoWToDetour(center, c);
 
     dtPolyRef startRef = 0;
     if (dtStatusFailed(query->findNearestPoly(c, extents, filter, &startRef, 0))) return false;
@@ -206,7 +230,8 @@ NAV_API bool FindRandomPoint_C(unsigned int mapId, XYZ_C center, float radius, X
 
     if (dtStatusFailed(query->findRandomPointAroundCircle(startRef, c, radius, filter, rndf, &randomRef, rndPos))) return false;
 
-    if (randomPoint) { randomPoint->x = rndPos[0]; randomPoint->y = rndPos[1]; randomPoint->z = rndPos[2]; }
+    // FIX: Convert Detour coordinates back to WoW
+    if (randomPoint) { DetourToWoW(rndPos, *randomPoint); }
     return true;
 }
 
@@ -234,8 +259,10 @@ NAV_API bool CreateCorridorForAgent_C(int agentId, unsigned int mapId, XYZ_C sta
 
     dtQueryFilter* filter = nav->GetDefaultFilter();
     float extents[3] = { 2.f, 4.f, 2.f };
-    float s[3] = { start.x, start.y, start.z };
-    float e[3] = { end.x, end.y, end.z };
+    // FIX: Convert WoW coordinates to Detour (WoW XYZ -> Detour YZX)
+    float s[3], e[3];
+    WoWToDetour(start, s);
+    WoWToDetour(end, e);
 
     dtPolyRef startRef = 0, endRef = 0;
     if (dtStatusFailed(query->findNearestPoly(s, extents, filter, &startRef, 0))) return false;
