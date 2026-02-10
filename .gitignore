@@ -8,6 +8,7 @@
 Debug/
 Release/
 x64/
+Bot/
 *.obj
 *.pdb
 *.ilk
@@ -17,6 +18,10 @@ x64/
 *.lastbuildstate
 *.pch
 *.ipch
+*.dll
+*.exp
+*.lib
+*.map
 
 # VS indexes
 *.vsidx
