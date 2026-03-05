@@ -68,9 +68,10 @@ void Navigation::Initialize()
     _slicedFindPath_startRef = 0;
     _slicedFindPath_endRef = 0;
     
-    // AMÉLIORATION: Initialize filter flags (Action 2)
-    _includeFlags = 0xffff; // Include all by default
-    _excludeFlags = 0;       // Exclude none by default
+    // HB 6.2.3 GetNewDefaultQueryFilter:
+    // Include = AbilityFlags.All, Exclude = AbilityFlags.Unwalkable | AbilityFlags.Transport.
+    _includeFlags = 0xffff;
+    _excludeFlags = 0x0050; // 0x10 (Unwalkable) | 0x40 (Transport)
     
     // CRITICAL FIX: Initialize _defaultFilter properly (HB WoD pattern)
     // This must be done BEFORE any PathFinder is created!
@@ -1485,7 +1486,9 @@ void Navigation::EvictLRUTiles()
         }
     }
     
-    // Unload the oldest tile (MMapManager doesn't have unload, so just remove from cache)
+    // Actually unload the tile from dtNavMesh (frees memory)
+    TileKey key = oldest->first;
+    manager->unloadTile(key.mapId, key.x, key.y);
     _tileAccessTime.erase(oldest);
 }
 
