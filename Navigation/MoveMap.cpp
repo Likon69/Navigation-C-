@@ -239,6 +239,27 @@ namespace MMAP
 		return true;
 	}
 
+	bool MMapManager::unloadTile(unsigned int mapId, int x, int y)
+	{
+		if (loadedMMaps.find(mapId) == loadedMMaps.end())
+			return false;
+
+		MMapData* mmap = loadedMMaps[mapId];
+
+		unsigned int packedGridPos = packTileID(x, y);
+		auto it = mmap->mmapLoadedTiles.find(packedGridPos);
+		if (it == mmap->mmapLoadedTiles.end())
+			return false; // tile not loaded
+
+		dtTileRef tileRef = it->second;
+		dtStatus dtResult = mmap->navMesh->removeTile(tileRef, nullptr, nullptr);
+		if (dtStatusFailed(dtResult))
+			return false;
+
+		mmap->mmapLoadedTiles.erase(it);
+		return true;
+	}
+
 	dtNavMesh const* MMapManager::GetNavMesh(unsigned int mapId)
 	{
 		if (loadedMMaps.find(mapId) == loadedMMaps.end())

@@ -83,6 +83,7 @@ namespace MMAP
 		bool hasLoadedEasternContinent = false;
 
 		bool loadMap(unsigned int mapId, int x, int y);
+		bool unloadTile(unsigned int mapId, int x, int y);
 
 		// the returned [dtNavMeshQuery const*] is NOT threadsafe
 		dtNavMeshQuery const* GetNavMeshQuery(unsigned int mapId, unsigned int instanceId);
