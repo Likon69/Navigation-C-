@@ -34,6 +34,10 @@
     <ClCompile Include="..\Navigation\Detour\Source\DetourNode.cpp">
       <Filter>Source Files\Detour</Filter>
     </ClCompile>
+    <ClCompile Include="..\\Navigation\\Detour\\Source\\DetourAssert.cpp" />
+    <ClCompile Include="..\Navigation\NavBridge.cpp" />
+    <ClCompile Include="..\Navigation\OffMeshManager.cpp" />
+    <ClCompile Include="..\\Navigation\\DetourCrowd\\Source\\DetourPathCorridor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Navigation\MoveMap.h">
@@ -60,6 +64,7 @@
     <ClInclude Include="..\Navigation\PathResult.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\Navigation\OffMeshManager.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">
