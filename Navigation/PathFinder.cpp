@@ -465,7 +465,7 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
 		m_pathPoints[i] = Vector3(
 			straightPathPoints[i * VERTEX_SIZE + 2],
 			straightPathPoints[i * VERTEX_SIZE],
-			straightPathPoints[i * VERTEX_SIZE + 1] + 0.5f); // Height correction: lift waypoints 0.5yd above navmesh surface
+			straightPathPoints[i * VERTEX_SIZE + 1]); // GAP 1: no +0.5f — HB 6.2.3 Tripper.RecastManaged copies Z directly from Detour
 	}
 
 	const unsigned int pointCount = static_cast<unsigned int>(straightCount);
@@ -579,9 +579,9 @@ void PathFinder::createFilter()
         m_filter = new dtQueryFilter();
     }
     
-    // Permettre toutes les zones par défaut
-    m_filter->setIncludeFlags(0xffff);
-    m_filter->setExcludeFlags(0);
+	// HB default query flags: include all, exclude unwalkable and transport.
+	m_filter->setIncludeFlags(0xffff);
+	m_filter->setExcludeFlags(0x0050); // 0x10 | 0x40
     
     // Area costs par défaut (Honorbuddy pattern)
     for (int i = 0; i < DT_MAX_AREAS; ++i)
