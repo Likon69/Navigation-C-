@@ -174,6 +174,8 @@ namespace MMAP
 		string fileName = "";
 		getMapName(mapId, fileName);
 		FILE* file = fopen(fileName.c_str(), "rb");
+		if (!file)
+			return false;
 		dtNavMeshParams params;
 		size_t file_read = fread(&params, sizeof(dtNavMeshParams), 1, file);
 		fclose(file);
@@ -203,7 +205,8 @@ namespace MMAP
 
 	bool MMapManager::loadMap(unsigned int mapId, int x, int y)
 	{
-		loadMapData(mapId);
+		if (!loadMapData(mapId))
+			return false;
 
 		MMapData* mmap = loadedMMaps[mapId];
 
@@ -215,6 +218,8 @@ namespace MMAP
 		getTileName(mapId, x, y, fileName);
 
 		FILE* file = fopen(fileName.c_str(), "rb");
+		if (!file)
+			return false;
 		MmapTileHeader fileHeader;
 		size_t file_read = fread(&fileHeader, sizeof(MmapTileHeader), 1, file);
 		unsigned char* data = (unsigned char*)dtAlloc(fileHeader.size, DT_ALLOC_PERM);
