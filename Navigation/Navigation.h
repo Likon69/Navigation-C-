@@ -98,6 +98,9 @@ public:
     // Tile management optimisÃ© (comme Honorbuddy)
     bool IsTileLoaded(unsigned int mapId, int x, int y);
     int GetLoadedTilesCount(unsigned int mapId);
+
+    // HB 6.2.3 pattern: callback when a tile is loaded (mirrors SetTileLoaderFunction)
+    void SetTileLoadedCallback(MMAP::TileLoadedCallback cb);
     
 	// QUICK WIN #1: Raycast shortcut during following
 	int UpdatePathFollowing(unsigned int mapId, XYZ currentPos, int pathLength,
@@ -115,13 +118,9 @@ public:
     void EnsureTiles(unsigned int mapId, XYZ position, int ring = 2);
     void EnsureTilesDirectional(unsigned int mapId, XYZ position, XYZ velocity, int ring = 2);
 
-	// Tile streaming enable/disable (instead of loading whole continent)
-	void EnableTileStreaming(bool enabled) { _useStreaming = enabled; }
-	bool IsTileStreamingEnabled() const { return _useStreaming; }
 	void EnsureTilesForPath(unsigned int mapId, XYZ start, XYZ end);
 
 private:
-	void InitializeMapsForContinent(MMAP::MMapManager* manager, unsigned int mapId);
 	static Navigation* s_singletonInstance;
 	XYZ* currentPath;
 	
@@ -158,9 +157,8 @@ private:
 	};
 	std::map<TileKey, uint64_t> _tileAccessTime; // Track last access time for LRU
 	static constexpr int MAX_CACHED_TILES = 512;
-	bool _useStreaming = false; // When true, skip InitializeMapsForContinent and load on-demand
 	
-	void WorldToTile(float worldX, float worldZ, int* tileX, int* tileY);
+	void WorldToTile(float worldX, float worldY, int* tileX, int* tileY);
 	void EvictLRUTiles();
 	
 };

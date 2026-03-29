@@ -246,6 +246,12 @@ __declspec(dllexport) void SetAreaCost(unsigned int areaId, float cost)
 		return Navigation::GetInstance()->GetAreaCost(areaId);
 	}
 	
+	// ===== HB 6.2.3 pattern: tile loaded callback =====
+	__declspec(dllexport) void SetTileLoadedCallback(void(__stdcall* callback)(unsigned int, int, int))
+	{
+		Navigation::GetInstance()->SetTileLoadedCallback(callback);
+	}
+
 	// ===== Tile Management OptimisÃ© =====
 	__declspec(dllexport) bool IsTileLoaded(unsigned int mapId, int x, int y)
 	{
@@ -284,12 +290,6 @@ __declspec(dllexport) void SetAreaCost(unsigned int areaId, float cost)
 		if (magnitude < 0.f) magnitude = 0.f;
 		if (magnitude > 1.f) magnitude = 1.f;
 		g_dtPathRandomizationMagnitude = magnitude;
-	}
-
-	// ===== Tile streaming toggle =====
-	__declspec(dllexport) void SetTileStreamingEnabled(bool enabled)
-	{
-		Navigation::GetInstance()->EnableTileStreaming(enabled);
 	}
 
 	// ===== EnsureTiles - Load tiles around position (HB-style streaming) =====

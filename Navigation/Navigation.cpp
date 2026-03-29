@@ -104,17 +104,8 @@ XYZ* Navigation::CalculatePath(unsigned int mapId, XYZ start, XYZ end, bool stra
     // AMÃƒâ€°LIORATION #2: Track pathfinding time
     auto t0 = std::chrono::high_resolution_clock::now();
     
-    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-
-    // Optional tile streaming vs full continent load
-    if (_useStreaming)
-    {
-        EnsureTilesForPath(mapId, start, end);
-    }
-    else
-    {
-        InitializeMapsForContinent(manager, mapId);
-    }
+    // HB 6.2.3 pattern: on-demand tile loading around path endpoints
+    EnsureTilesForPath(mapId, start, end);
 
     PathFinder pathFinder(mapId, 1);
     pathFinder.setUseStrightPath(straightPath);
@@ -161,15 +152,8 @@ PathResult* Navigation::CalculatePathEx(unsigned int mapId, XYZ start, XYZ end, 
 {
     auto t0 = std::chrono::high_resolution_clock::now();
 
-    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    if (_useStreaming)
-    {
-        EnsureTilesForPath(mapId, start, end);
-    }
-    else
-    {
-        InitializeMapsForContinent(manager, mapId);
-    }
+    // HB 6.2.3 pattern: on-demand tile loading around path endpoints
+    EnsureTilesForPath(mapId, start, end);
 
     PathFinder pathFinder(mapId, 1);
     pathFinder.setUseStrightPath(straightPath);
@@ -288,38 +272,6 @@ void Navigation::FreePathResult(PathResult* result)
     delete result;
 }
 
-void Navigation::InitializeMapsForContinent(MMAP::MMapManager* manager, unsigned int mapId)
-{
-    if ((mapId == 0 && !manager->hasLoadedEasternContinent) || (mapId == 1 && !manager->hasLoadedWesternContinent))
-    {
-        for (auto& p : std::filesystem::directory_iterator(Navigation::GetMmapsPath()))
-        {
-            string path = p.path().string();
-            string extension = path.substr(path.find_last_of(".") + 1);
-            if (extension == "mmtile")
-            {
-                string filename = path.substr(path.find_last_of("\\") + 1);
-
-                int xTens = filename[3] - '0';
-                int xOnes = filename[4] - '0';
-                int yTens = filename[5] - '0';
-                int yOnes = filename[6] - '0';
-
-                int x = (xTens * 10) + xOnes;
-                int y = (yTens * 10) + yOnes;
-
-                if (filename[0] == '0' && filename[1] == '0' && filename[2] == std::to_string(mapId)[0])
-                    manager->loadMap(mapId, x, y);
-            }
-        }
-    }
-
-    if (mapId == 0)
-        manager->hasLoadedEasternContinent = true;
-    if (mapId == 1)
-        manager->hasLoadedWesternContinent = true;
-}
-
 string Navigation::GetMmapsPath()
 {
     WCHAR DllPath[MAX_PATH] = { 0 };
@@ -342,9 +294,9 @@ string Navigation::GetMmapsPath()
 // Advanced Detour Navigation Functions - Like Honorbuddy RecastManaged
 bool Navigation::FindNearestPoly(unsigned int mapId, XYZ center, float searchRadius, XYZ* nearestPoint)
 {
+    EnsureTiles(mapId, center, 1);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query) return false;
     
@@ -372,9 +324,9 @@ bool Navigation::FindNearestPoly(unsigned int mapId, XYZ center, float searchRad
 
 int Navigation::FindPolysAroundCircle(unsigned int mapId, XYZ center, float radius, XYZ* results, int maxResults)
 {
+    EnsureTiles(mapId, center, 1);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query) return 0;
     
@@ -439,9 +391,9 @@ int Navigation::FindPolysAroundCircle(unsigned int mapId, XYZ center, float radi
 
 float Navigation::FindDistanceToWall(unsigned int mapId, XYZ position, float maxRadius, XYZ* hitPoint)
 {
+    EnsureTiles(mapId, position, 1);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
     {
@@ -483,9 +435,9 @@ float Navigation::FindDistanceToWall(unsigned int mapId, XYZ position, float max
 // Extended version that also returns hit normal (like HB WoD)
 float Navigation::FindDistanceToWallEx(unsigned int mapId, XYZ position, float maxRadius, XYZ* hitPoint, XYZ* outHitNormal)
 {
+    EnsureTiles(mapId, position, 1);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query) return -1.0f;
     
@@ -530,7 +482,7 @@ float Navigation::FindDistanceToWallFromPoly(unsigned int mapId, dtPolyRef polyR
     if (polyRef == 0) return -1.0f;
     
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
+    EnsureTiles(mapId, position, 1);
     
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query) return -1.0f;
@@ -564,9 +516,9 @@ float Navigation::FindDistanceToWallFromPoly(unsigned int mapId, dtPolyRef polyR
 
 bool Navigation::IsPointOnNavMesh(unsigned int mapId, XYZ point, float tolerance)
 {
+    EnsureTiles(mapId, point, 1);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query) return false;
     
@@ -584,9 +536,9 @@ bool Navigation::IsPointOnNavMesh(unsigned int mapId, XYZ point, float tolerance
 
 XYZ Navigation::FindRandomPointAroundCircle(unsigned int mapId, XYZ center, float radius)
 {
+    EnsureTiles(mapId, center, 1);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     XYZ result = center; // Default fallback
     
@@ -622,9 +574,10 @@ XYZ Navigation::FindRandomPointAroundCircle(unsigned int mapId, XYZ center, floa
 
 bool Navigation::HasLineOfSight(unsigned int mapId, XYZ start, XYZ end)
 {
+    EnsureTiles(mapId, start, 1);
+    EnsureTiles(mapId, end, 0);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query) return false;
     
@@ -727,11 +680,11 @@ unsigned int Navigation::Raycast(unsigned int mapId, dtPolyRef startRef, XYZ sta
         return DT_FAILURE | DT_INVALID_PARAM;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
+    EnsureTiles(mapId, startPos, 1);
+    EnsureTiles(mapId, endPos, 0);
 
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
-    if (!query)
-        return DT_FAILURE;
+    if (!query) return DT_FAILURE;
 
     // FIXED: Convert WoW coordinates to Detour
     float start[3];
@@ -775,9 +728,9 @@ unsigned int Navigation::Raycast(unsigned int mapId, dtPolyRef startRef, XYZ sta
 bool Navigation::FindNearestPolyRef(unsigned int mapId, XYZ position, XYZ extents,
     dtPolyRef* outPolyRef, XYZ* nearestPoint)
 {
-    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
+    EnsureTiles(mapId, position, 1);
 
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
         return false;
@@ -812,7 +765,6 @@ bool Navigation::GetPolyHeight(unsigned int mapId, dtPolyRef polyRef, XYZ positi
         return false;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
 
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
@@ -837,8 +789,6 @@ bool Navigation::ClosestPointOnPoly(unsigned int mapId, dtPolyRef polyRef, XYZ p
         return false;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
         return false;
@@ -863,8 +813,6 @@ bool Navigation::ClosestPointOnPolyBoundary(unsigned int mapId, dtPolyRef polyRe
         return false;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
         return false;
@@ -890,9 +838,6 @@ unsigned int Navigation::SetPolyArea(unsigned int mapId, dtPolyRef polyRef, unsi
         return DT_FAILURE | DT_INVALID_PARAM;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-
-    // Need non-const access to modify the navmesh
     dtNavMesh* navMesh = const_cast<dtNavMesh*>(manager->GetNavMesh(mapId));
     if (!navMesh)
         return DT_FAILURE;
@@ -906,8 +851,6 @@ unsigned int Navigation::GetPolyArea(unsigned int mapId, dtPolyRef polyRef, unsi
         return DT_FAILURE | DT_INVALID_PARAM;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-
     const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
     if (!navMesh)
         return DT_FAILURE;
@@ -921,9 +864,6 @@ unsigned int Navigation::SetPolyFlags(unsigned int mapId, dtPolyRef polyRef, uns
         return DT_FAILURE | DT_INVALID_PARAM;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-
-    // Need non-const access to modify the navmesh
     dtNavMesh* navMesh = const_cast<dtNavMesh*>(manager->GetNavMesh(mapId));
     if (!navMesh)
         return DT_FAILURE;
@@ -937,8 +877,6 @@ unsigned int Navigation::GetPolyFlags(unsigned int mapId, dtPolyRef polyRef, uns
         return DT_FAILURE | DT_INVALID_PARAM;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-
     const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
     if (!navMesh)
         return DT_FAILURE;
@@ -952,7 +890,7 @@ int Navigation::QueryPolygons(unsigned int mapId, XYZ center, XYZ extents, dtPol
         return 0;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
+    EnsureTiles(mapId, center, 1);
 
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
@@ -981,7 +919,7 @@ int Navigation::FindLocalNeighbourhood(unsigned int mapId, dtPolyRef startPolyRe
         return 0;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
+    EnsureTiles(mapId, center, 1);
 
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
@@ -1014,7 +952,6 @@ int Navigation::GetPolyWallSegments(unsigned int mapId, dtPolyRef polyRef, XYZ* 
         return 0;
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
 
     const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
     if (!query)
@@ -1048,9 +985,10 @@ int Navigation::GetPolyWallSegments(unsigned int mapId, dtPolyRef polyRef, XYZ* 
 // ===== Honorbuddy-style Sliced PathFinding (pour navigation asynchrone) =====
 bool Navigation::InitSlicedFindPath(unsigned int mapId, XYZ start, XYZ end)
 {
+    // HB 6.2.3 pattern: on-demand tile loading around path endpoints
+    EnsureTilesForPath(mapId, start, end);
+
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    InitializeMapsForContinent(manager, mapId);
-    
     const dtNavMeshQuery* constQuery = manager->GetNavMeshQuery(mapId, 1);
     if (!constQuery) return false;
     
@@ -1339,6 +1277,13 @@ float Navigation::GetAreaCost(unsigned int areaId)
 }
 
 // ===== Tile Management OptimisÃƒÂ© (comme Honorbuddy) =====
+void Navigation::SetTileLoadedCallback(MMAP::TileLoadedCallback cb)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    if (manager)
+        manager->SetTileLoadedCallback(cb);
+}
+
 bool Navigation::IsTileLoaded(unsigned int mapId, int x, int y)
 {
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
@@ -1454,7 +1399,7 @@ dtNavMeshQuery* Navigation::GetNavMeshQuery(unsigned int mapId)
 }
 
 // ACTION #5: Tile streaming with LRU cache implementation
-void Navigation::WorldToTile(float worldX, float worldZ, int* tileX, int* tileY)
+void Navigation::WorldToTile(float worldX, float worldY, int* tileX, int* tileY)
 {
     // WoW tile grid: 64x64 tiles, each tile is 533.33 yards
     // Origin at center, so range is ±17066.66656 yards
@@ -1462,34 +1407,34 @@ void Navigation::WorldToTile(float worldX, float worldZ, int* tileX, int* tileY)
     const float GRID_ORIGIN = 32.0f * TILE_SIZE;
     
     *tileX = (int)((GRID_ORIGIN - worldX) / TILE_SIZE);
-    *tileY = (int)((GRID_ORIGIN - worldZ) / TILE_SIZE);
+    *tileY = (int)((GRID_ORIGIN - worldY) / TILE_SIZE);
 }
 
 void Navigation::EvictLRUTiles()
 {
-    if (_tileAccessTime.size() <= MAX_CACHED_TILES)
-        return;
-    
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
     if (!manager) return;
     
-    // Find oldest accessed tile
-    auto oldest = _tileAccessTime.begin();
-    uint64_t oldestTime = oldest->second;
-    
-    for (auto it = _tileAccessTime.begin(); it != _tileAccessTime.end(); ++it)
+    while (_tileAccessTime.size() > MAX_CACHED_TILES)
     {
-        if (it->second < oldestTime)
+        // Find oldest accessed tile
+        auto oldest = _tileAccessTime.begin();
+        uint64_t oldestTime = oldest->second;
+        
+        for (auto it = _tileAccessTime.begin(); it != _tileAccessTime.end(); ++it)
         {
-            oldest = it;
-            oldestTime = it->second;
+            if (it->second < oldestTime)
+            {
+                oldest = it;
+                oldestTime = it->second;
+            }
         }
+        
+        // Actually unload the tile from dtNavMesh (frees memory)
+        TileKey key = oldest->first;
+        manager->unloadTile(key.mapId, key.x, key.y);
+        _tileAccessTime.erase(oldest);
     }
-    
-    // Actually unload the tile from dtNavMesh (frees memory)
-    TileKey key = oldest->first;
-    manager->unloadTile(key.mapId, key.x, key.y);
-    _tileAccessTime.erase(oldest);
 }
 
 void Navigation::EnsureTiles(unsigned int mapId, XYZ position, int ring)
