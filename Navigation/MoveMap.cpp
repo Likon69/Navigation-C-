@@ -241,6 +241,10 @@ namespace MMAP
 		// HB 4.3.4: Load tile-specific offmesh connections
 		OffMeshManager::Instance().LoadTileOffMeshConnections(mapId, x, y);
 
+		// HB 6.2.3 pattern: notify managed layer that a tile was loaded
+		if (_tileLoadedCallback)
+			_tileLoadedCallback(mapId, x, y);
+
 		return true;
 	}
 

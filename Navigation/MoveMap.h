@@ -74,16 +74,20 @@ namespace MMAP
 
 	typedef std::unordered_map<unsigned int, MMapData*> MMapDataSet;
 
+	// HB 6.2.3 pattern: callback from native to managed when a tile is loaded.
+	// Mirrors Tripper.RecastManaged.Detour.LoadTileDelegate.
+	typedef void(__stdcall* TileLoadedCallback)(unsigned int mapId, int x, int y);
+
 	class MMapManager
 	{
 	public:
 		~MMapManager();
 
-		bool hasLoadedWesternContinent = false;
-		bool hasLoadedEasternContinent = false;
-
 		bool loadMap(unsigned int mapId, int x, int y);
 		bool unloadTile(unsigned int mapId, int x, int y);
+
+		void SetTileLoadedCallback(TileLoadedCallback cb) { _tileLoadedCallback = cb; }
+		TileLoadedCallback GetTileLoadedCallback() const { return _tileLoadedCallback; }
 
 		// the returned [dtNavMeshQuery const*] is NOT threadsafe
 		dtNavMeshQuery const* GetNavMeshQuery(unsigned int mapId, unsigned int instanceId);
@@ -91,6 +95,7 @@ namespace MMAP
 
 		unsigned int getLoadedMapsCount() const { return loadedMMaps.size(); }
 	private:
+		TileLoadedCallback _tileLoadedCallback = nullptr;
 		bool loadMapData(unsigned int mapId);
 		unsigned int packTileID(int x, int y);
 
