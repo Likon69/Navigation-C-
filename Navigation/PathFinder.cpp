@@ -603,11 +603,9 @@ void PathFinder::updateFilter(bool isSwimming, float x, float y, float z)
 
 NavTerrain PathFinder::getNavTerrain(float x, float y, float z)
 {
-	// NEW-1: Use navmesh polygon flags instead of server-side terrain data.
-	// Trinity mmaps encode liquid type into poly flags during generation:
-	// NAV_GROUND=0x01, NAV_MAGMA=0x02, NAV_SLIME=0x04, NAV_WATER=0x08.
-	// Since we're an external bot without access to GetTerrain()->getLiquidStatus(),
-	// we query the navmesh directly for the polygon at this position.
+	// Query navmesh polygon area type at this position.
+	// Area IDs now use HB-compatible sequential values:
+	// NAV_GROUND=1, NAV_WATER=2, NAV_LAVA=3, NAV_ROAD=4, etc.
 
 	float point[VERTEX_SIZE] = { y, z, x }; // WoW (X,Y,Z) → Detour (Y,Z,X)
 	float extents[VERTEX_SIZE] = { 3.0f, 5.0f, 3.0f };
@@ -618,20 +616,13 @@ NavTerrain PathFinder::getNavTerrain(float x, float y, float z)
 	if (dtStatusFailed(status) || polyRef == 0)
 		return NAV_GROUND; // Fallback if no poly found
 
-	unsigned short polyFlags = 0;
-	status = m_navMesh->getPolyFlags(polyRef, &polyFlags);
+	unsigned char polyArea = 0;
+	status = m_navMesh->getPolyArea(polyRef, &polyArea);
 	if (dtStatusFailed(status))
 		return NAV_GROUND;
 
-	// Poly flags directly contain NavTerrain values from mmap generation
-	if (polyFlags & NAV_WATER)
-		return NAV_WATER;
-	if (polyFlags & NAV_MAGMA)
-		return NAV_MAGMA;
-	if (polyFlags & NAV_SLIME)
-		return NAV_SLIME;
-
-	return NAV_GROUND;
+	// Area values are sequential HB IDs stored directly in dtPoly.areaAndtype
+	return (NavTerrain)polyArea;
 }
 
 bool PathFinder::HaveTile(const Vector3& p) const

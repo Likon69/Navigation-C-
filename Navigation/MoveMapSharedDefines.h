@@ -43,18 +43,20 @@ struct MmapTileHeader
 		mmapVersion(MMAP_VERSION), size(0), usesLiquids(false) {}//usesLiquids(true) {} //Remove liquid in paths (not 100% with current maps)
 };
 
+// HB 6.2.3 compatible AreaType enum (sequential IDs, NOT bitmask)
+// Must match CopilotBuddy/Tripper/Navigation/AreaType.cs
 enum NavTerrain
 {
-	NAV_EMPTY = 0x00,
-	NAV_GROUND = 0x01,
-	NAV_MAGMA = 0x02,
-	NAV_SLIME = 0x04,
-	NAV_WATER = 0x08,
-	NAV_UNUSED1 = 0x10,
-	NAV_UNUSED2 = 0x20,
-	NAV_UNUSED3 = 0x40,
-	NAV_UNUSED4 = 0x80
-	// we only have 8 bits
+	NAV_EMPTY    = 0,   // Unwalkable / null area
+	NAV_GROUND   = 1,   // AreaType.Ground  (cost 1.66)
+	NAV_WATER    = 2,   // AreaType.Water   (cost 3.33)
+	NAV_LAVA     = 3,   // AreaType.Lava    (cost 55.0) — covers both magma and slime
+	NAV_ROAD     = 4,   // AreaType.Road    (cost 1.0)  — preferred path
+	NAV_FALL     = 5,   // AreaType.Fall    (cost 1.7)
+	NAV_ELEVATOR = 6,   // AreaType.Elevator(cost 3.16)
+	NAV_GATE     = 7,   // AreaType.Gate    (cost 1.66)
+	// 8-63 available for Portal, Blocked, Blackspot, etc.
+	// Detour stores area in 6 bits of dtPoly.areaAndtype (max 63)
 };
 
 #endif  // _MOVE_MAP_SHARED_DEFINES_H
