@@ -97,7 +97,15 @@ float dtQueryFilter::getCost(const float* pa, const float* pb,
 		multiplier *= (1.0f + jitter);
 		if (multiplier < 0.01f) multiplier = 0.01f; // Clamp to avoid zero/negative
 	}
-	return base * multiplier;
+	// Slope penalty: penalize elevation changes to discourage mountain shortcuts.
+	// pa[1]/pb[1] = height (Detour Y-up = WoW Z).
+	// Skip for offmesh connections (doors/portals) — they already have 0.1x multiplier
+	// and may legitimately cross large vertical distances (cave exits, etc.).
+	extern float g_dtSlopePenaltyFactor;
+	const float dy = (curPoly->getType() != DT_POLYTYPE_OFFMESH_CONNECTION)
+		? ((pb[1] > pa[1]) ? (pb[1] - pa[1]) : (pa[1] - pb[1]))
+		: 0.0f;
+	return base * multiplier + dy * g_dtSlopePenaltyFactor;
 }
 #else
 inline bool dtQueryFilter::passFilter(const dtPolyRef /*ref*/,
@@ -124,7 +132,14 @@ inline float dtQueryFilter::getCost(const float* pa, const float* pb,
 		multiplier *= (1.0f + jitter);
 		if (multiplier < 0.01f) multiplier = 0.01f;
 	}
-	return base * multiplier;
+	// Slope penalty: penalize elevation changes to discourage mountain shortcuts.
+	// Skip for offmesh connections (doors/portals) — they already have 0.1x multiplier
+	// and may legitimately cross large vertical distances (cave exits, etc.).
+	extern float g_dtSlopePenaltyFactor;
+	const float dy = (curPoly->getType() != DT_POLYTYPE_OFFMESH_CONNECTION)
+		? ((pb[1] > pa[1]) ? (pb[1] - pa[1]) : (pa[1] - pb[1]))
+		: 0.0f;
+	return base * multiplier + dy * g_dtSlopePenaltyFactor;
 }
 #endif	
 	
