@@ -4,7 +4,6 @@
 #include <vector>
 #include <map> // ACTION #5 & #6: LRU cache and agent corridors
 #include <iostream>
-#include <fstream>
 #include <filesystem>
 #include <algorithm>
 #include <chrono> // QUICK WIN #2: High-resolution timer for adaptive sliced
