@@ -475,10 +475,7 @@ void dtNavMesh::connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int
 		if (targetPoly->firstLink == DT_NULL_LINK)
 			continue;
 		
-		// FIX: Use large vertical extent for off-mesh linking (same as baseOffMeshLinks).
-		const float offMeshVerticalExtent = 200.0f;
-		const float offMeshHorizExtent = targetCon->rad < 5.0f ? 5.0f : targetCon->rad;
-		const float halfExtents[3] = { offMeshHorizExtent, offMeshVerticalExtent, offMeshHorizExtent };
+		const float halfExtents[3] = { targetCon->rad, target->header->walkableClimb, targetCon->rad };
 		
 		// Find polygon to connect to.
 		const float* p = &targetCon->pos[3];
@@ -487,9 +484,8 @@ void dtNavMesh::connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int
 		if (!ref)
 			continue;
 		// findNearestPoly may return too optimistic results, further check to make sure.
-		// FIX: Use offMeshHorizExtent for the horizontal check.
 		float hdist2 = dtSqr(nearestPt[0]-p[0])+dtSqr(nearestPt[2]-p[2]);
-		if (hdist2 > dtSqr(offMeshHorizExtent))
+		if (hdist2 > dtSqr(targetCon->rad))
 			continue;
 		// Make sure the location is on current mesh.
 		float* v = &target->verts[targetPoly->verts[1]*3];
@@ -581,13 +577,7 @@ void dtNavMesh::baseOffMeshLinks(dtMeshTile* tile)
 		dtOffMeshConnection* con = &tile->offMeshCons[i];
 		dtPoly* poly = &tile->polys[con->poly];
 	
-		// FIX: Use large vertical extent for off-mesh linking.
-		// walkableClimb (~1 yard) is too small for elevators where the ground
-		// polygon may be 10-60+ yards below/above the off-mesh endpoint.
-		// Horizontal accuracy is still enforced by con->rad.
-		const float offMeshVerticalExtent = 200.0f;
-		const float offMeshHorizExtent = con->rad < 5.0f ? 5.0f : con->rad;
-		const float halfExtents[3] = { offMeshHorizExtent, offMeshVerticalExtent, offMeshHorizExtent };
+		const float halfExtents[3] = { con->rad, tile->header->walkableClimb, con->rad };
 		
 		// Find polygon to connect to.
 		const float* p = &con->pos[0]; // First vertex
@@ -596,10 +586,8 @@ void dtNavMesh::baseOffMeshLinks(dtMeshTile* tile)
 		if (!ref)
 			continue;
 		// findNearestPoly may return too optimistic results, further check to make sure.
-		// FIX: Use offMeshHorizExtent instead of con->rad for the horizontal check
-		// so elevators with ground polys slightly beyond con->rad still link.
 		float hdist2 = dtSqr(nearestPt[0]-p[0])+dtSqr(nearestPt[2]-p[2]);
-		if (hdist2 > dtSqr(offMeshHorizExtent))
+		if (hdist2 > dtSqr(con->rad))
 			continue;
 		// Make sure the location is on current mesh.
 		float* v = &tile->verts[poly->verts[0]*3];

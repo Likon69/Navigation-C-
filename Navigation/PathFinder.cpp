@@ -177,8 +177,7 @@ dtPolyRef PathFinder::getPolyByLocation(const float* point, float* distance) con
 	}
 
 	// still nothing ..
-	// try with bigger search box
-	// extents[1] = 200.0f; // Using POLY_SEARCH_EXTENTS constant
+	// retry with the same HB extents before giving up
 	dtResult = m_navMeshQuery->findNearestPoly(point, extents, m_filter, &polyRef, closestPoint);
 	if (dtStatusSucceed(dtResult) && polyRef != INVALID_POLYREF)
 	{
@@ -590,15 +589,14 @@ void PathFinder::createFilter()
 
 void PathFinder::updateFilter(bool isSwimming, float x, float y, float z)
 {
-	// allow creatures to cheat and use different movement types if they are moved
-	// forcefully into terrain they can't normally move in
-	if (isSwimming)
-	{
-		unsigned short includedFlags = m_filter->getIncludeFlags();
-		includedFlags |= getNavTerrain(x, y, z);
+	(void)isSwimming;
+	(void)x;
+	(void)y;
+	(void)z;
 
-		m_filter->setIncludeFlags(includedFlags);
-	}
+	// HB WoD keeps polygon AreaType values separate from AbilityFlags.
+	// AreaType affects cost through dtQueryFilter::setAreaCost(); it must never
+	// be ORed into include flags.
 }
 
 NavTerrain PathFinder::getNavTerrain(float x, float y, float z)

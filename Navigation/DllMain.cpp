@@ -15,15 +15,6 @@ namespace
 	}
 }
 
-// Randomization globals use C++ linkage so Detour references can resolve
-bool g_dtPathRandomizationEnabled = false;
-float g_dtPathRandomizationMagnitude = 0.0f; // 0..1 range (e.g. 0.05 = +/-5%)
-
-// Slope penalty: extra cost per unit of elevation change in getCost().
-// Penalizes mountain shortcuts where the path goes uphill/downhill.
-// HB avoids these structurally via 133y tiles; we compensate with cost.
-float g_dtSlopePenaltyFactor = 5.0f;
-
 extern "C"
 {
 	__declspec(dllexport) XYZ* CalculatePath(unsigned int mapId, XYZ start, XYZ end, bool smoothPath, int* length)
@@ -286,22 +277,6 @@ __declspec(dllexport) void SetAreaCost(unsigned int areaId, float cost)
 	__declspec(dllexport) void ResetNavStats()
 	{
 		Navigation::GetInstance()->ResetNavStats();
-	}
-
-	// ===== Randomized path cost (natural variation to avoid robotic paths) =====
-	__declspec(dllexport) void SetPathRandomization(bool enabled, float magnitude)
-	{
-		g_dtPathRandomizationEnabled = enabled;
-		if (magnitude < 0.f) magnitude = 0.f;
-		if (magnitude > 1.f) magnitude = 1.f;
-		g_dtPathRandomizationMagnitude = magnitude;
-	}
-
-	// ===== Slope penalty: penalize elevation changes to avoid mountain shortcuts =====
-	__declspec(dllexport) void SetSlopePenalty(float factor)
-	{
-		if (factor < 0.f) factor = 0.f;
-		g_dtSlopePenaltyFactor = factor;
 	}
 
 	// ===== EnsureTiles - Load tiles around position (HB-style streaming) =====

@@ -47,15 +47,35 @@ struct MmapTileHeader
 // Must match CopilotBuddy/Tripper/Navigation/AreaType.cs
 enum NavTerrain
 {
-	NAV_EMPTY    = 0,   // Unwalkable / null area
-	NAV_GROUND   = 1,   // AreaType.Ground  (cost 1.66)
-	NAV_WATER    = 2,   // AreaType.Water   (cost 3.33)
-	NAV_LAVA     = 3,   // AreaType.Lava    (cost 55.0) — covers both magma and slime
-	NAV_ROAD     = 4,   // AreaType.Road    (cost 1.0)  — preferred path
-	NAV_FALL     = 5,   // AreaType.Fall    (cost 1.7)
-	NAV_ELEVATOR = 6,   // AreaType.Elevator(cost 3.16)
-	NAV_GATE     = 7,   // AreaType.Gate    (cost 1.66)
-	// 8-63 available for Portal, Blocked, Blackspot, etc.
+	NAV_EMPTY            = 0,
+	NAV_GROUND           = 1,
+	NAV_WATER            = 2,
+	NAV_LAVA             = 3,
+	NAV_ROAD             = 4,
+	NAV_FALL             = 5,
+	NAV_ELEVATOR         = 6,
+	NAV_GATE             = 7,
+	NAV_PORTAL           = 8,
+	NAV_DEFENDERS_PORTAL = 9,
+	NAV_HORDE_PORTAL     = 10,
+	NAV_ALLIANCE_PORTAL  = 11,
+	NAV_BLOCKED          = 12,
+	NAV_INTERACT_UNIT    = 13,
+	NAV_INTERACT_OBJECT  = 14,
+	NAV_HORDE            = 15,
+	NAV_ALLIANCE         = 16,
+	NAV_BLACKSPOT        = 17,
+	NAV_KNOWN_BUILDING   = 18,
+	NAV_MISC1            = 20,
+	NAV_MISC2            = 21,
+	NAV_MISC3            = 22,
+	NAV_MISC4            = 23,
+	NAV_MISC5            = 24,
+	NAV_MISC6            = 25,
+	NAV_MISC7            = 26,
+	NAV_MISC8            = 27,
+	NAV_MISC9            = 28,
+	NAV_MISC10           = 29,
 	// Detour stores area in 6 bits of dtPoly.areaAndtype (max 63)
 };
 

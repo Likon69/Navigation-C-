@@ -81,31 +81,7 @@ float dtQueryFilter::getCost(const float* pa, const float* pb,
 								 const dtPolyRef /*curRef*/, const dtMeshTile* /*curTile*/, const dtPoly* curPoly,
 								 const dtPolyRef /*nextRef*/, const dtMeshTile* /*nextTile*/, const dtPoly* /*nextPoly*/) const
 {
-	// Offmesh preference: apply strong cost reduction for off-mesh connections
-	// Trinity/MaNGOS tiles often assign the same area id to ground and offmesh.
-	// Using polygon TYPE lets us bias elevator/portal shortcuts without touching area ids.
-	// Multiplicateur 0.1f => 10x moins cher qu'un segment normal.
-	const float base = dtVdist(pa, pb) * m_areaCost[curPoly->getArea()];
-	float multiplier = (curPoly->getType() == DT_POLYTYPE_OFFMESH_CONNECTION) ? 0.1f : 1.0f;
-	// Randomization (small jitter) for natural path variation
-	extern bool g_dtPathRandomizationEnabled;
-	extern float g_dtPathRandomizationMagnitude; // e.g. 0.05 = +/-5%
-	if (g_dtPathRandomizationEnabled && g_dtPathRandomizationMagnitude > 0.0f)
-	{
-		float r = (float)rand() / (float)RAND_MAX; // 0..1
-		float jitter = (r * 2.0f - 1.0f) * g_dtPathRandomizationMagnitude; // -mag .. +mag
-		multiplier *= (1.0f + jitter);
-		if (multiplier < 0.01f) multiplier = 0.01f; // Clamp to avoid zero/negative
-	}
-	// Slope penalty: penalize elevation changes to discourage mountain shortcuts.
-	// pa[1]/pb[1] = height (Detour Y-up = WoW Z).
-	// Skip for offmesh connections (doors/portals) — they already have 0.1x multiplier
-	// and may legitimately cross large vertical distances (cave exits, etc.).
-	extern float g_dtSlopePenaltyFactor;
-	const float dy = (curPoly->getType() != DT_POLYTYPE_OFFMESH_CONNECTION)
-		? ((pb[1] > pa[1]) ? (pb[1] - pa[1]) : (pa[1] - pb[1]))
-		: 0.0f;
-	return base * multiplier + dy * g_dtSlopePenaltyFactor;
+	return dtVdist(pa, pb) * m_areaCost[curPoly->getArea()];
 }
 #else
 inline bool dtQueryFilter::passFilter(const dtPolyRef /*ref*/,
@@ -120,26 +96,7 @@ inline float dtQueryFilter::getCost(const float* pa, const float* pb,
 									 const dtPolyRef /*curRef*/, const dtMeshTile* /*curTile*/, const dtPoly* curPoly,
 									 const dtPolyRef /*nextRef*/, const dtMeshTile* /*nextTile*/, const dtPoly* /*nextPoly*/) const
 {
-	// Offmesh preference: apply strong cost reduction for off-mesh connections (non-virtual path)
-	const float base = dtVdist(pa, pb) * m_areaCost[curPoly->getArea()];
-	float multiplier = (curPoly->getType() == DT_POLYTYPE_OFFMESH_CONNECTION) ? 0.1f : 1.0f;
-	extern bool g_dtPathRandomizationEnabled;
-	extern float g_dtPathRandomizationMagnitude;
-	if (g_dtPathRandomizationEnabled && g_dtPathRandomizationMagnitude > 0.0f)
-	{
-		float r = (float)rand() / (float)RAND_MAX;
-		float jitter = (r * 2.0f - 1.0f) * g_dtPathRandomizationMagnitude;
-		multiplier *= (1.0f + jitter);
-		if (multiplier < 0.01f) multiplier = 0.01f;
-	}
-	// Slope penalty: penalize elevation changes to discourage mountain shortcuts.
-	// Skip for offmesh connections (doors/portals) — they already have 0.1x multiplier
-	// and may legitimately cross large vertical distances (cave exits, etc.).
-	extern float g_dtSlopePenaltyFactor;
-	const float dy = (curPoly->getType() != DT_POLYTYPE_OFFMESH_CONNECTION)
-		? ((pb[1] > pa[1]) ? (pb[1] - pa[1]) : (pa[1] - pb[1]))
-		: 0.0f;
-	return base * multiplier + dy * g_dtSlopePenaltyFactor;
+	return dtVdist(pa, pb) * m_areaCost[curPoly->getArea()];
 }
 #endif	
 	
