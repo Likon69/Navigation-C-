@@ -133,8 +133,8 @@ private:
 	unsigned short _includeFlags; // AMÉLIORATION: Include flags (Action 2)
 	unsigned short _excludeFlags; // AMÉLIORATION: Exclude flags (Action 2)
 	
-	// Memory pool pour optimiser allocations (pattern Honorbuddy)
-	static const int MAX_POLYS_BUFFER = 256;
+	// HB 6.2.3 Tripper uses 8192 for FinalizeSlicedFindPath and FindStraightPath.
+	static const int MAX_POLYS_BUFFER = 8192;
 	dtPolyRef _polysBuffer[MAX_POLYS_BUFFER]; // RÃ©utilisÃ© entre appels
 	
 	// QUICK WIN #2: Adaptive sliced pathfinding calibration

@@ -50,11 +50,9 @@ namespace Movement
 using Movement::Vector3;
 using Movement::PointsArray;
 
-// 74*4.0f=296y  number_of_points*interval = max_path_len
-// this is way more than actual evade range
-// I think we can safely cut those down even more
-#define MAX_PATH_LENGTH         740//74
-#define MAX_POINT_PATH_LENGTH   740//74
+// HB 6.2.3 Tripper uses 8192 for FinalizeSlicedFindPath and FindStraightPath.
+#define MAX_PATH_LENGTH         8192
+#define MAX_POINT_PATH_LENGTH   8192
 
 #define SMOOTH_PATH_STEP_SIZE   4.0f
 
