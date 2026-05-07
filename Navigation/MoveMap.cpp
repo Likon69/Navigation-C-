@@ -290,7 +290,7 @@ namespace MMAP
 		if (mmap->navMeshQueries.find(instanceId) == mmap->navMeshQueries.end())
 		{
 			dtNavMeshQuery* query = dtAllocNavMeshQuery();
-			dtStatus dtResult = query->init(mmap->navMesh, 65535);
+				dtStatus dtResult = query->init(mmap->navMesh, 748983); // HB 6.2.3 WorldMeshManager value — dtNodeIndex is now unsigned int
 			if (dtStatusFailed(dtResult))
 			{
 				dtFreeNavMeshQuery(query);
