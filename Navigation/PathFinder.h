@@ -124,6 +124,7 @@ public:
 	// HB 4.3.4: OffMesh Connection detection
 	bool IsOffMeshWaypoint(int waypointIndex) const;
 	bool GetOffMeshConnectionAt(const Vector3& pos, Vector3* outEnd, unsigned char* outType, unsigned int* outInteractId) const;
+	unsigned int getPolyLength() const { return m_polyLength; } // true Detour A* corridor length
 
 private:
 
