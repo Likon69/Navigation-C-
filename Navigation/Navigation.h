@@ -27,11 +27,13 @@ struct NavStats
 	int lastShortcutIndex;     // Last waypoint index selected by shortcut
 	float lastShortcutDistance;// Distance gained by last shortcut
 	float lastRaycastHitFraction; // Raycast hit fraction (1 = clear)
+	int corridorLength;        // True Detour A* poly corridor length (m_polyLength)
 	
 	NavStats() : pathfindTimeMs(0), polysVisited(0), pathLength(0), 
 	             shortcutsApplied(0), stuckRecoveries(0), pathRecalculations(0),
 	             raycastAttempts(0), raycastHits(0), lastShortcutIndex(0),
-	             lastShortcutDistance(0.0f), lastRaycastHitFraction(1.0f) {}
+	             lastShortcutDistance(0.0f), lastRaycastHitFraction(1.0f),
+	             corridorLength(0) {}
 };
 
 class Navigation
