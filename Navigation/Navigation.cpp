@@ -225,6 +225,7 @@ PathResult* Navigation::CalculatePathEx(unsigned int mapId, XYZ start, XYZ end, 
 
     // Update stats similar to legacy CalculatePath
     _stats.polysVisited = static_cast<int>(pointPath.size());
+    _stats.corridorLength = static_cast<int>(pathFinder.getPolyLength()); // true A* corridor
     float pathLen = 0.0f;
     for (size_t i = 1; i < pointPath.size(); ++i)
     {
