@@ -1,5 +1,6 @@
 #include "NavBridge.h"
 #include "Navigation.h"
+#include "MoveMap.h"
 #include "OffMeshManager.h"
 #include "PathFinder.h"
 #include <cstdlib>
@@ -558,21 +559,20 @@ NAV_API int GetPolyWallSegments_C(unsigned int mapId, uint64_t polyRef,
     return count;
 }
 
-NAV_API NavStats_C GetNavStats_C()
+// GetNavStats_C: out-pointer version. Avoids x86 Cdecl struct-by-value complications.
+NAV_API void GetNavStats_C(NavStats_C* outStats)
 {
+    if (!outStats) return;
+    *outStats = NavStats_C{};
     Navigation* nav = Navigation::GetInstance();
-    NavStats_C result{};
-    if (!nav)
-        return result;
-
+    if (!nav) return;
     NavStats stats = nav->GetNavStats();
-    result.PathfindTimeMs = stats.pathfindTimeMs;
-    result.PolysVisited = stats.polysVisited;
-    result.PathLength = stats.pathLength;
-    result.ShortcutsApplied = stats.shortcutsApplied;
-    result.StuckRecoveries = stats.stuckRecoveries;
-    result.PathRecalculations = stats.pathRecalculations;
-    return result;
+    outStats->PathfindTimeMs     = stats.pathfindTimeMs;
+    outStats->PolysVisited       = stats.polysVisited;
+    outStats->PathLength         = stats.pathLength;
+    outStats->ShortcutsApplied   = stats.shortcutsApplied;
+    outStats->StuckRecoveries    = stats.stuckRecoveries;
+    outStats->PathRecalculations = stats.pathRecalculations;
 }
 
 NAV_API void ResetNavStats_C()
@@ -582,3 +582,176 @@ NAV_API void ResetNavStats_C()
         return;
     nav->ResetNavStats();
 }
+
+// -------------------------------------------------------------------
+// Tile-loaded callback
+// -------------------------------------------------------------------
+NAV_API void SetTileLoadedCallback_C(NavBridgeTileLoadedCallback callback)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return;
+    nav->SetTileLoadedCallback(reinterpret_cast<MMAP::TileLoadedCallback>(callback));
+}
+
+// -------------------------------------------------------------------
+// Filter flag accessors
+// -------------------------------------------------------------------
+NAV_API unsigned short GetIncludeFlags_C(void)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->GetIncludeFlags() : 0xFFFF;
+}
+
+NAV_API unsigned short GetExcludeFlags_C(void)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->GetExcludeFlags() : 0u;
+}
+
+NAV_API float GetAreaCost_C(int areaId)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->GetAreaCost(static_cast<unsigned int>(areaId)) : 1.0f;
+}
+
+// -------------------------------------------------------------------
+// LOS + wall distance
+// -------------------------------------------------------------------
+NAV_API bool HasLineOfSight_C(unsigned int mapId, XYZ_C start, XYZ_C end)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->HasLineOfSight(mapId, ToNative(start), ToNative(end)) : false;
+}
+
+NAV_API float FindDistanceToWall_C(unsigned int mapId, XYZ_C position, float maxRadius, XYZ_C* hitPoint)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0.0f;
+    XYZ hit{};
+    float dist = nav->FindDistanceToWall(mapId, ToNative(position), maxRadius, &hit);
+    ToCStruct(hit, hitPoint);
+    return dist;
+}
+
+NAV_API float FindDistanceToWallEx_C(unsigned int mapId, XYZ_C position, float maxRadius, XYZ_C* hitPoint, XYZ_C* outHitNormal)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0.0f;
+    XYZ hit{}, norm{};
+    float dist = nav->FindDistanceToWallEx(mapId, ToNative(position), maxRadius, &hit, &norm);
+    ToCStruct(hit, hitPoint);
+    ToCStruct(norm, outHitNormal);
+    return dist;
+}
+
+NAV_API float FindDistanceToWallFromPoly_C(unsigned int mapId, uint64_t polyRef, XYZ_C position, float maxRadius, XYZ_C* hitPoint, XYZ_C* outHitNormal)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0.0f;
+    XYZ hit{}, norm{};
+    float dist = nav->FindDistanceToWallFromPoly(mapId, ToInternalRef(polyRef), ToNative(position), maxRadius, &hit, &norm);
+    ToCStruct(hit, hitPoint);
+    ToCStruct(norm, outHitNormal);
+    return dist;
+}
+
+NAV_API bool IsPointOnNavMesh_C(unsigned int mapId, XYZ_C point, float tolerance)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->IsPointOnNavMesh(mapId, ToNative(point), tolerance) : false;
+}
+
+// -------------------------------------------------------------------
+// Tile state
+// -------------------------------------------------------------------
+NAV_API bool IsTileLoaded_C(unsigned int mapId, int x, int y)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->IsTileLoaded(mapId, x, y) : false;
+}
+
+NAV_API int GetLoadedTilesCount_C(unsigned int mapId)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->GetLoadedTilesCount(mapId) : 0;
+}
+
+// -------------------------------------------------------------------
+// Polygon area/flags manipulation — blackspot marking
+// Mirrors HB Tripper.RecastManaged.NavMesh.SetPolyArea / GetPolyArea etc.
+// -------------------------------------------------------------------
+NAV_API unsigned int SetPolyArea_C(unsigned int mapId, uint64_t polyRef, unsigned char area)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0x80000000u; // DT_FAILURE
+    return nav->SetPolyArea(mapId, ToInternalRef(polyRef), area);
+}
+
+NAV_API unsigned int GetPolyArea_C(unsigned int mapId, uint64_t polyRef, unsigned char* outArea)
+{
+    if (!outArea) return 0x80000000u; // DT_FAILURE | DT_INVALID_PARAM
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0x80000000u;
+    return nav->GetPolyArea(mapId, ToInternalRef(polyRef), outArea);
+}
+
+NAV_API unsigned int SetPolyFlags_C(unsigned int mapId, uint64_t polyRef, unsigned short flags)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0x80000000u;
+    return nav->SetPolyFlags(mapId, ToInternalRef(polyRef), flags);
+}
+
+NAV_API unsigned int GetPolyFlags_C(unsigned int mapId, uint64_t polyRef, unsigned short* outFlags)
+{
+    if (!outFlags) return 0x80000000u;
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0x80000000u;
+    return nav->GetPolyFlags(mapId, ToInternalRef(polyRef), outFlags);
+}
+// -------------------------------------------------------------------
+// HB-style raycast: resolves start poly, exposes visited poly corridor.
+// Returns dtStatus; outT = hit fraction (1.0 = clear path to end).
+// outPath receives uint64_t (ToExternalRef-converted) poly refs.
+// -------------------------------------------------------------------
+NAV_API unsigned int Raycast_HB_C(unsigned int mapId, uint64_t startRef,
+                                   XYZ_C startPos, XYZ_C endPos,
+                                   float* outT, XYZ_C* outHitNormal,
+                                   uint64_t* outPath, int* outPathCount, int maxPath)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav)
+    {
+        if (outT)         *outT = 0.0f;
+        if (outPathCount) *outPathCount = 0;
+        return 0x80000000u; // DT_FAILURE
+    }
+
+    const int bufSize = (maxPath > 0) ? maxPath : 256;
+    std::vector<dtPolyRef> pathBuf(static_cast<size_t>(bufSize), 0);
+    XYZ hitNormal{};
+    float t = 0.0f;
+    int pathCount = 0;
+
+    unsigned int status = nav->Raycast(mapId, ToInternalRef(startRef),
+        ToNative(startPos), ToNative(endPos),
+        &t, &hitNormal, pathBuf.data(), &pathCount, bufSize);
+
+    if (outT) *outT = t;
+    ToCStruct(hitNormal, outHitNormal);
+
+    const int copyCount = (pathCount < bufSize) ? pathCount : bufSize;
+    if (outPath && outPathCount)
+    {
+        for (int i = 0; i < copyCount; ++i)
+            outPath[i] = ToExternalRef(pathBuf[i]);
+        *outPathCount = copyCount;
+    }
+    else if (outPathCount)
+    {
+        *outPathCount = 0;
+    }
+
+    return status;
+}
+
