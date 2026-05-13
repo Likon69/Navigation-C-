@@ -105,6 +105,11 @@ extern "C" {
 typedef void (__stdcall *NavBridgeTileLoadedCallback)(unsigned int mapId, int x, int y);
 NAV_API void SetTileLoadedCallback_C(NavBridgeTileLoadedCallback callback);
 
+// Log callback — fires DLL internal events into the managed logger (C# OnNavigatorLogMessage).
+// Same pattern as SetTileLoadedCallback_C. Called for tile load/unload, pathfind results.
+typedef void (__stdcall *NavLogCallbackFn)(const char* msg);
+NAV_API void SetNavLogCallback_C(NavLogCallbackFn callback);
+
 // Filter flag accessors
 NAV_API unsigned short GetIncludeFlags_C(void);
 NAV_API unsigned short GetExcludeFlags_C(void);

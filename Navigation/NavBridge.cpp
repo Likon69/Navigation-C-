@@ -4,11 +4,29 @@
 #include "OffMeshManager.h"
 #include "PathFinder.h"
 #include <cstdlib>
+#include <cstdarg>
 #include <vector>
 #include <iostream>
 #include <map>
 
 using namespace std;
+
+// -------------------------------------------------------------------
+// Nav log callback — declared early so NavLog() is available everywhere.
+// Registered from C# via SetNavLogCallback_C.
+// -------------------------------------------------------------------
+static NavLogCallbackFn g_navLogCallback = nullptr;
+
+static void NavLog(const char* fmt, ...)
+{
+    if (!g_navLogCallback) return;
+    char buf[512];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, (int)sizeof(buf), fmt, args);
+    va_end(args);
+    g_navLogCallback(buf);
+}
 
 namespace
 {
@@ -124,7 +142,17 @@ NAV_API PathResult* CalculatePathEx(unsigned int mapId, XYZ_C start, XYZ_C end, 
     XYZ s; s.X = start.x; s.Y = start.y; s.Z = start.z;
     XYZ e; e.X = end.x; e.Y = end.y; e.Z = end.z;
 
-    return nav->CalculatePathEx(mapId, s, e, straightPath);
+    PathResult* result = nav->CalculatePathEx(mapId, s, e, straightPath);
+    if (result)
+    {
+        if (result->status & 0x80000000u)
+            NavLog("CalculatePathEx: FAILED mapId=%u (%.1f,%.1f,%.1f)->(%.1f,%.1f,%.1f) status=0x%08X",
+                mapId, start.x, start.y, start.z, end.x, end.y, end.z, result->status);
+        else if (result->status & 0x20000000u)
+            NavLog("CalculatePathEx: partial path mapId=%u len=%d (%.1f,%.1f,%.1f)->(%.1f,%.1f,%.1f)",
+                mapId, result->length, start.x, start.y, start.z, end.x, end.y, end.z);
+    }
+    return result;
 }
 
 NAV_API void FreePathResult(PathResult* result)
@@ -591,6 +619,15 @@ NAV_API void SetTileLoadedCallback_C(NavBridgeTileLoadedCallback callback)
     Navigation* nav = Navigation::GetInstance();
     if (!nav) return;
     nav->SetTileLoadedCallback(reinterpret_cast<MMAP::TileLoadedCallback>(callback));
+}
+
+// -------------------------------------------------------------------
+// Nav log callback — fires DLL internal events into managed C# logger.
+// Same pattern as SetTileLoadedCallback_C.
+// -------------------------------------------------------------------
+NAV_API void SetNavLogCallback_C(NavLogCallbackFn callback)
+{
+    g_navLogCallback = callback;
 }
 
 // -------------------------------------------------------------------
