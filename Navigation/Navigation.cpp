@@ -77,11 +77,15 @@ void Navigation::Initialize()
     _defaultFilter.setIncludeFlags(_includeFlags);
     _defaultFilter.setExcludeFlags(_excludeFlags);
     
-    // Initialiser les area costs avec des valeurs par défaut (comme Honorbuddy 4.3.4)
+    // Initialiser les area costs — tous neutres par défaut.
+    // TODO: Vérifier les vrais coûts HB dans le decompile HB 6.2.3:
+    //   WowNavigator.cs → SetDefaultQueryFilterCosts() (lignes ~523-541)
+    //   Les area costs sont du runtime C#, PAS dans les tiles binaires.
+    //   Ne PAS deviner les valeurs — les lire du decompile.
     for (int i = 0; i < DT_MAX_AREAS; i++)
     {
-        _areaCosts[i] = 1.0f; // Coût neutre par défaut
-        _defaultFilter.setAreaCost(i, 1.0f); // Sync avec _defaultFilter!
+        _areaCosts[i] = 1.0f;
+        _defaultFilter.setAreaCost(i, 1.0f);
     }
     
     // QUICK WIN #2: Initialize adaptive sliced calibration

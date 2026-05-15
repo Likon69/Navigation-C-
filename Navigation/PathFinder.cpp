@@ -582,9 +582,14 @@ void PathFinder::createFilter()
 	m_filter->setIncludeFlags(0xffff);
 	m_filter->setExcludeFlags(0x0050); // 0x10 | 0x40
     
-    // Area costs par défaut (Honorbuddy pattern)
+    // Area costs — exact values from HB 4.3.4 WowNavigator.cs L591-597.
     for (int i = 0; i < DT_MAX_AREAS; ++i)
         m_filter->setAreaCost(i, 1.0f);
+    m_filter->setAreaCost(NAV_GROUND, 1.66f);
+    m_filter->setAreaCost(NAV_WATER,  3.33f);
+    m_filter->setAreaCost(NAV_LAVA,   55.0f);
+    m_filter->setAreaCost(NAV_ROAD,   1.0f);
+    m_filter->setAreaCost(NAV_FALL,   1.7f);
 }
 
 void PathFinder::updateFilter(bool isSwimming, float x, float y, float z)
