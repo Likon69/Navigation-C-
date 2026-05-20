@@ -582,14 +582,27 @@ void PathFinder::createFilter()
 	m_filter->setIncludeFlags(0xffff);
 	m_filter->setExcludeFlags(0x0050); // 0x10 | 0x40
     
-    // Area costs — exact values from HB 4.3.4 WowNavigator.cs L591-597.
+    // Area costs — exact values from HB 6.2.3 WowNavigator::SetDefaultQueryFilterCosts.
     for (int i = 0; i < DT_MAX_AREAS; ++i)
         m_filter->setAreaCost(i, 1.0f);
-    m_filter->setAreaCost(NAV_GROUND, 1.66f);
-    m_filter->setAreaCost(NAV_WATER,  3.33f);
-    m_filter->setAreaCost(NAV_LAVA,   55.0f);
-    m_filter->setAreaCost(NAV_ROAD,   1.0f);
-    m_filter->setAreaCost(NAV_FALL,   1.7f);
+    m_filter->setAreaCost(NAV_GROUND,            1.66f);
+    m_filter->setAreaCost(NAV_WATER,             3.33f);
+    m_filter->setAreaCost(NAV_LAVA,             55.0f);
+    m_filter->setAreaCost(NAV_ROAD,              1.0f);
+    m_filter->setAreaCost(NAV_FALL,              1.7f);
+    m_filter->setAreaCost(NAV_ELEVATOR,          3.16f);
+    m_filter->setAreaCost(NAV_GATE,              1.66f);
+    m_filter->setAreaCost(NAV_PORTAL,            1.66f);
+    m_filter->setAreaCost(NAV_DEFENDERS_PORTAL,  3.16f);
+    m_filter->setAreaCost(NAV_HORDE_PORTAL,      1.66f);
+    m_filter->setAreaCost(NAV_ALLIANCE_PORTAL,   1.66f);
+    m_filter->setAreaCost(NAV_BLOCKED,          100.0f);
+    m_filter->setAreaCost(NAV_INTERACT_UNIT,     1.66f);
+    m_filter->setAreaCost(NAV_INTERACT_OBJECT,   1.66f);
+    m_filter->setAreaCost(NAV_KNOWN_BUILDING,    1.66f);
+    m_filter->setAreaCost(NAV_HORDE,             1.66f);
+    m_filter->setAreaCost(NAV_ALLIANCE,          1.66f);
+    m_filter->setAreaCost(NAV_BLACKSPOT,        60.0f);
 }
 
 void PathFinder::updateFilter(bool isSwimming, float x, float y, float z)
