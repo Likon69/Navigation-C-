@@ -77,16 +77,34 @@ void Navigation::Initialize()
     _defaultFilter.setIncludeFlags(_includeFlags);
     _defaultFilter.setExcludeFlags(_excludeFlags);
     
-    // Initialiser les area costs — tous neutres par défaut.
-    // TODO: Vérifier les vrais coûts HB dans le decompile HB 6.2.3:
-    //   WowNavigator.cs → SetDefaultQueryFilterCosts() (lignes ~523-541)
-    //   Les area costs sont du runtime C#, PAS dans les tiles binaires.
-    //   Ne PAS deviner les valeurs — les lire du decompile.
+    // Area costs — valeurs HB 6.2.3 WowNavigator::SetDefaultQueryFilterCosts.
+    // Ces valeurs sont la source de vérité pour tous les PathFinder créés.
     for (int i = 0; i < DT_MAX_AREAS; i++)
     {
         _areaCosts[i] = 1.0f;
         _defaultFilter.setAreaCost(i, 1.0f);
     }
+    _areaCosts[NAV_GROUND]            = 1.66f;
+    _areaCosts[NAV_WATER]             = 3.33f;
+    _areaCosts[NAV_LAVA]              = 55.0f;
+    _areaCosts[NAV_ROAD]              = 1.0f;
+    _areaCosts[NAV_FALL]              = 1.7f;
+    _areaCosts[NAV_ELEVATOR]          = 3.16f;
+    _areaCosts[NAV_GATE]              = 1.66f;
+    _areaCosts[NAV_PORTAL]            = 1.66f;
+    _areaCosts[NAV_DEFENDERS_PORTAL]  = 3.16f;
+    _areaCosts[NAV_HORDE_PORTAL]      = 1.66f;
+    _areaCosts[NAV_ALLIANCE_PORTAL]   = 1.66f;
+    _areaCosts[NAV_BLOCKED]           = 100.0f;
+    _areaCosts[NAV_INTERACT_UNIT]     = 1.66f;
+    _areaCosts[NAV_INTERACT_OBJECT]   = 1.66f;
+    _areaCosts[NAV_KNOWN_BUILDING]    = 1.66f;
+    _areaCosts[NAV_HORDE]             = 1.66f;
+    _areaCosts[NAV_ALLIANCE]          = 1.66f;
+    _areaCosts[NAV_BLACKSPOT]         = 60.0f;
+    // Sync _defaultFilter avec les mêmes valeurs
+    for (int i = 0; i < DT_MAX_AREAS; i++)
+        _defaultFilter.setAreaCost(i, _areaCosts[i]);
     
     // QUICK WIN #2: Initialize adaptive sliced calibration
     _itersPerMs = 300.0f; // Conservative estimate: 300 iters per ms (will auto-calibrate)
