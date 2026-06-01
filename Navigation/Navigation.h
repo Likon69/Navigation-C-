@@ -7,7 +7,7 @@
 #include "PathResult.h"
 #include <vector>
 #include <string>
-#include <map> // ACTION #5: LRU cache
+#include <unordered_map>
 #include <cstdint> // uint64_t for timestamps
 
 // Note: dtPolyRef is unsigned int (32-bit) by default, matching HB WoD
@@ -116,11 +116,9 @@ public:
     dtNavMeshQuery* GetNavMeshQuery(unsigned int mapId);
     dtQueryFilter* GetDefaultFilter() { return &_defaultFilter; }
     
-    // ACTION #5: Tile streaming with LRU cache
-    void EnsureTiles(unsigned int mapId, XYZ position, int ring = 2);
-    void EnsureTilesDirectional(unsigned int mapId, XYZ position, XYZ velocity, int ring = 2);
-
-	void EnsureTilesForPath(unsigned int mapId, XYZ start, XYZ end);
+    // Tile streaming — HB 6.2.3 pattern
+    void EnsureTiles(unsigned int mapId, XYZ position, int ring = 1);
+    void EnsureTilesDirectional(unsigned int mapId, XYZ position, XYZ velocity, int ring = 1);
 
 private:
 	static Navigation* s_singletonInstance;
@@ -147,21 +145,25 @@ private:
 	// AMÃ‰LIORATION #2: Navigation statistics tracking
 	NavStats _stats;
 	
-	// ACTION #5: Tile streaming LRU cache
+	// Tile streaming — time-based GC (HB 6.2.3 pattern: 1 minute idle before eviction)
 	struct TileKey {
 		unsigned int mapId;
 		int x, y;
-		bool operator<(const TileKey& other) const {
-			if (mapId != other.mapId) return mapId < other.mapId;
-			if (x != other.x) return x < other.x;
-			return y < other.y;
+		bool operator==(const TileKey& o) const { return mapId == o.mapId && x == o.x && y == o.y; }
+	};
+	struct TileKeyHash {
+		std::size_t operator()(const TileKey& k) const {
+			std::size_t h = k.mapId;
+			h ^= (std::size_t)k.x * 2654435761u + 0x9e3779b9u + (h << 6) + (h >> 2);
+			h ^= (std::size_t)k.y * 2246822519u + 0x9e3779b9u + (h << 6) + (h >> 2);
+			return h;
 		}
 	};
-	std::map<TileKey, uint64_t> _tileAccessTime; // Track last access time for LRU
-	static constexpr int MAX_CACHED_TILES = 512;
+	std::unordered_map<TileKey, uint64_t, TileKeyHash> _tileAccessTime;
+	static constexpr uint64_t TILE_GC_TIMEOUT_MS = 60000; // 1 minute, like HB GarbageCollectTime
 	
 	void WorldToTile(float worldX, float worldY, int* tileX, int* tileY);
-	void EvictLRUTiles();
+	void GarbageCollectTiles();
 	
 };
 

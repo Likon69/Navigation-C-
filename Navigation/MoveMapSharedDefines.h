@@ -29,8 +29,11 @@
 
 #define MMAP_MAGIC 0x4d4d4150   // 'MMAP'
 #define MMAP_VERSION 4
+#define MMAP_MULTI_TILE_VERSION 5  // 4×4 sub-tiles per ADT (16 Detour blobs)
+#define MMAP_SUBTILES_PER_ADT 16   // 4×4 grid = 16 sub-tiles
 #define SIZE_OF_GRIDS 533.33333f
 
+// Version 4 — legacy 1-blob-per-ADT format
 struct MmapTileHeader
 {
 	unsigned int mmapMagic;
@@ -41,6 +44,17 @@ struct MmapTileHeader
 
 	MmapTileHeader() : mmapMagic(MMAP_MAGIC), dtVersion(DT_NAVMESH_VERSION),
 		mmapVersion(MMAP_VERSION), size(0), usesLiquids(false) {}//usesLiquids(true) {} //Remove liquid in paths (not 100% with current maps)
+};
+
+// Version 5 — 4×4 multi-tile format (16 Detour blobs per ADT file)
+// File layout: MmapMultiTileHeader + 16 × (uint32 blobSize + byte[blobSize] detourData)
+struct MmapMultiTileHeader
+{
+	unsigned int mmapMagic;     // MMAP_MAGIC (0x4d4d4150)
+	unsigned int dtVersion;     // DT_NAVMESH_VERSION (7)
+	unsigned int mmapVersion;   // MMAP_MULTI_TILE_VERSION (5)
+	unsigned int tileCount;     // Number of sub-tile slots (16)
+	unsigned int flags;         // Reserved (1)
 };
 
 // HB 6.2.3 compatible AreaType enum (sequential IDs, NOT bitmask)

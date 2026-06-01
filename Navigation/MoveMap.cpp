@@ -220,23 +220,138 @@ namespace MMAP
 		FILE* file = fopen(fileName.c_str(), "rb");
 		if (!file)
 			return false;
-		MmapTileHeader fileHeader;
-		size_t file_read = fread(&fileHeader, sizeof(MmapTileHeader), 1, file);
-		unsigned char* data = (unsigned char*)dtAlloc(fileHeader.size, DT_ALLOC_PERM);
-		size_t result = fread(data, fileHeader.size, 1, file);
-		fclose(file);
 
-		dtMeshHeader* header = (dtMeshHeader*)data;
-		OffMeshManager::Instance().RegisterTileNavParams(mapId, header);
-		dtTileRef tileRef = 0;
-		dtStatus dtResult = mmap->navMesh->addTile(data, fileHeader.size, DT_TILE_FREE_DATA, 0, &tileRef);
-		if (dtStatusFailed(dtResult))
+		// Peek at the first 12 bytes to determine format version
+		unsigned int headerPeek[3]; // magic, dtVersion, mmapVersion
+		if (fread(headerPeek, sizeof(unsigned int), 3, file) != 3)
 		{
-			dtFree(data);
+			fclose(file);
 			return false;
 		}
 
-		mmap->mmapLoadedTiles.insert(std::pair<unsigned int, dtTileRef>(packedGridPos, tileRef));
+		// Validate magic
+		if (headerPeek[0] != MMAP_MAGIC)
+		{
+			fclose(file);
+			return false;
+		}
+
+		unsigned int mmapVersion = headerPeek[2];
+		std::vector<dtTileRef> tileRefs;
+
+		if (mmapVersion == MMAP_MULTI_TILE_VERSION)
+		{
+			// ===== Version 5: Multi-tile format (16 sub-tiles per ADT) =====
+			// Read remaining header fields (tileCount + flags)
+			unsigned int tileCount, flags;
+			if (fread(&tileCount, sizeof(unsigned int), 1, file) != 1 ||
+				fread(&flags, sizeof(unsigned int), 1, file) != 1)
+			{
+				fclose(file);
+				return false;
+			}
+
+			// Sanity check
+			if (tileCount == 0 || tileCount > 64)
+			{
+				fclose(file);
+				return false;
+			}
+
+			bool anyLoaded = false;
+			for (unsigned int i = 0; i < tileCount; i++)
+			{
+				unsigned int blobSize = 0;
+				if (fread(&blobSize, sizeof(unsigned int), 1, file) != 1)
+				{
+					fclose(file);
+					return anyLoaded;
+				}
+
+				if (blobSize == 0)
+				{
+					// Empty sub-tile slot — skip
+					tileRefs.push_back(0);
+					continue;
+				}
+
+				unsigned char* data = (unsigned char*)dtAlloc(blobSize, DT_ALLOC_PERM);
+				if (!data)
+				{
+					fclose(file);
+					return anyLoaded;
+				}
+
+				if (fread(data, blobSize, 1, file) != 1)
+				{
+					dtFree(data);
+					fclose(file);
+					return anyLoaded;
+				}
+
+				dtMeshHeader* header = (dtMeshHeader*)data;
+				OffMeshManager::Instance().RegisterTileNavParams(mapId, header);
+
+				dtTileRef tileRef = 0;
+				dtStatus dtResult = mmap->navMesh->addTile(data, blobSize, DT_TILE_FREE_DATA, 0, &tileRef);
+				if (dtStatusFailed(dtResult))
+				{
+					dtFree(data);
+					tileRefs.push_back(0);
+					continue;
+				}
+
+				tileRefs.push_back(tileRef);
+				anyLoaded = true;
+			}
+
+			fclose(file);
+
+			if (!anyLoaded)
+				return false;
+		}
+		else if (mmapVersion == MMAP_VERSION)
+		{
+			// ===== Version 4: Legacy single-blob format =====
+			// Rewind and read the full MmapTileHeader
+			fseek(file, 0, SEEK_SET);
+			MmapTileHeader fileHeader;
+			if (fread(&fileHeader, sizeof(MmapTileHeader), 1, file) != 1)
+			{
+				fclose(file);
+				return false;
+			}
+
+			unsigned char* data = (unsigned char*)dtAlloc(fileHeader.size, DT_ALLOC_PERM);
+			if (fread(data, fileHeader.size, 1, file) != 1)
+			{
+				dtFree(data);
+				fclose(file);
+				return false;
+			}
+			fclose(file);
+
+			dtMeshHeader* header = (dtMeshHeader*)data;
+			OffMeshManager::Instance().RegisterTileNavParams(mapId, header);
+
+			dtTileRef tileRef = 0;
+			dtStatus dtResult = mmap->navMesh->addTile(data, fileHeader.size, DT_TILE_FREE_DATA, 0, &tileRef);
+			if (dtStatusFailed(dtResult))
+			{
+				dtFree(data);
+				return false;
+			}
+
+			tileRefs.push_back(tileRef);
+		}
+		else
+		{
+			// Unknown version
+			fclose(file);
+			return false;
+		}
+
+		mmap->mmapLoadedTiles.insert(std::pair<unsigned int, std::vector<dtTileRef>>(packedGridPos, tileRefs));
 
 		// HB 4.3.4: Load tile-specific offmesh connections
 		OffMeshManager::Instance().LoadTileOffMeshConnections(mapId, x, y);
@@ -260,13 +375,19 @@ namespace MMAP
 		if (it == mmap->mmapLoadedTiles.end())
 			return false; // tile not loaded
 
-		dtTileRef tileRef = it->second;
-		dtStatus dtResult = mmap->navMesh->removeTile(tileRef, nullptr, nullptr);
-		if (dtStatusFailed(dtResult))
-			return false;
+		// Remove all sub-tile refs (1 for v4, up to 16 for v5)
+		bool anyFailed = false;
+		for (dtTileRef tileRef : it->second)
+		{
+			if (tileRef == 0)
+				continue;
+			dtStatus dtResult = mmap->navMesh->removeTile(tileRef, nullptr, nullptr);
+			if (dtStatusFailed(dtResult))
+				anyFailed = true;
+		}
 
 		mmap->mmapLoadedTiles.erase(it);
-		return true;
+		return !anyFailed;
 	}
 
 	dtNavMesh const* MMapManager::GetNavMesh(unsigned int mapId)

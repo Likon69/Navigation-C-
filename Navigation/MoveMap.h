@@ -26,6 +26,7 @@
 #define MANGOS_H_MOVE_MAP
 
 #include <unordered_map>
+#include <vector>
 
 #include "DetourAlloc.h"
 #include "DetourNavMesh.h"
@@ -46,7 +47,7 @@ inline void dtCustomFree(void* ptr)
 
 namespace MMAP
 {
-	typedef std::unordered_map<unsigned int, dtTileRef> MMapTileSet;
+	typedef std::unordered_map<unsigned int, std::vector<dtTileRef>> MMapTileSet;
 	typedef std::unordered_map<unsigned int, dtNavMeshQuery*> NavMeshQuerySet;
 
 	struct MMapData

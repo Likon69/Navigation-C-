@@ -2,7 +2,8 @@
 #include "MoveMap.h"
 #include "PathFinder.h"
 #include <vector>
-#include <map> // ACTION #5 & #6: LRU cache and agent corridors
+#include <map>
+#include <unordered_map>
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
@@ -125,8 +126,10 @@ XYZ* Navigation::CalculatePath(unsigned int mapId, XYZ start, XYZ end, bool stra
     // AMÃƒâ€°LIORATION #2: Track pathfinding time
     auto t0 = std::chrono::high_resolution_clock::now();
     
-    // HB 6.2.3 pattern: on-demand tile loading around path endpoints
-    EnsureTilesForPath(mapId, start, end);
+    // HB 6.2.3 pattern: GC once per FindPath, load ring=1 around start+end only
+    GarbageCollectTiles();
+    EnsureTiles(mapId, start, 1);
+    EnsureTiles(mapId, end, 1);
 
     PathFinder pathFinder(mapId, 1);
     pathFinder.setUseStrightPath(straightPath);
@@ -173,8 +176,10 @@ PathResult* Navigation::CalculatePathEx(unsigned int mapId, XYZ start, XYZ end, 
 {
     auto t0 = std::chrono::high_resolution_clock::now();
 
-    // HB 6.2.3 pattern: on-demand tile loading around path endpoints
-    EnsureTilesForPath(mapId, start, end);
+    // HB 6.2.3 pattern: GC once per FindPath, load ring=1 around start+end only
+    GarbageCollectTiles();
+    EnsureTiles(mapId, start, 1);
+    EnsureTiles(mapId, end, 1);
 
     PathFinder pathFinder(mapId, 1);
     pathFinder.setUseStrightPath(straightPath);
@@ -260,25 +265,6 @@ PathResult* Navigation::CalculatePathEx(unsigned int mapId, XYZ start, XYZ end, 
     _stats.pathRecalculations++;
 
     return result;
-}
-
-// Basic heuristic: ensure tiles around start & end (ring=2) and midpoint for long paths
-void Navigation::EnsureTilesForPath(unsigned int mapId, XYZ start, XYZ end)
-{
-    int ring = 2;
-    EnsureTiles(mapId, start, ring);
-    EnsureTiles(mapId, end, ring);
-    // Midpoint for long straight traversals
-    float dx = end.X - start.X;
-    float dy = end.Y - start.Y;
-    if ((dx*dx + dy*dy) > 200*200) // >200y distance
-    {
-        XYZ mid{ start.X + dx * 0.5f,
-                  start.Y + dy * 0.5f,
-                  (start.Z + end.Z) * 0.5f };
-        EnsureTiles(mapId, mid, ring);
-    }
-    EvictLRUTiles();
 }
 
 void Navigation::FreePathResult(PathResult* result)
@@ -1007,8 +993,10 @@ int Navigation::GetPolyWallSegments(unsigned int mapId, dtPolyRef polyRef, XYZ* 
 // ===== Honorbuddy-style Sliced PathFinding (pour navigation asynchrone) =====
 bool Navigation::InitSlicedFindPath(unsigned int mapId, XYZ start, XYZ end)
 {
-    // HB 6.2.3 pattern: on-demand tile loading around path endpoints
-    EnsureTilesForPath(mapId, start, end);
+    // HB 6.2.3 pattern: GC once per FindPath, load ring=1 around start+end only
+    GarbageCollectTiles();
+    EnsureTiles(mapId, start, 1);
+    EnsureTiles(mapId, end, 1);
 
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
     const dtNavMeshQuery* constQuery = manager->GetNavMeshQuery(mapId, 1);
@@ -1432,30 +1420,29 @@ void Navigation::WorldToTile(float worldX, float worldY, int* tileX, int* tileY)
     *tileY = (int)((GRID_ORIGIN - worldY) / TILE_SIZE);
 }
 
-void Navigation::EvictLRUTiles()
+// HB 6.2.3 pattern: time-based tile GC (GarbageCollectTime = 1 minute).
+// Called once at the start of each FindPath — never from inside EnsureTiles.
+void Navigation::GarbageCollectTiles()
 {
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
     if (!manager) return;
-    
-    while (_tileAccessTime.size() > MAX_CACHED_TILES)
+
+    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()
+    ).count();
+
+    auto it = _tileAccessTime.begin();
+    while (it != _tileAccessTime.end())
     {
-        // Find oldest accessed tile
-        auto oldest = _tileAccessTime.begin();
-        uint64_t oldestTime = oldest->second;
-        
-        for (auto it = _tileAccessTime.begin(); it != _tileAccessTime.end(); ++it)
+        if (now - it->second > TILE_GC_TIMEOUT_MS)
         {
-            if (it->second < oldestTime)
-            {
-                oldest = it;
-                oldestTime = it->second;
-            }
+            manager->unloadTile(it->first.mapId, it->first.x, it->first.y);
+            it = _tileAccessTime.erase(it);
         }
-        
-        // Actually unload the tile from dtNavMesh (frees memory)
-        TileKey key = oldest->first;
-        manager->unloadTile(key.mapId, key.x, key.y);
-        _tileAccessTime.erase(oldest);
+        else
+        {
+            ++it;
+        }
     }
 }
 
@@ -1492,9 +1479,6 @@ void Navigation::EnsureTiles(unsigned int mapId, XYZ position, int ring)
             manager->loadMap(mapId, tileX, tileY);
         }
     }
-    
-    // Evict old tiles if cache is full
-    EvictLRUTiles();
 }
 
 void Navigation::EnsureTilesDirectional(unsigned int mapId, XYZ position, XYZ velocity, int ring)
@@ -1532,6 +1516,4 @@ void Navigation::EnsureTilesDirectional(unsigned int mapId, XYZ position, XYZ ve
         _tileAccessTime[key] = currentTime;
         manager->loadMap(mapId, prefetchX, prefetchY);
     }
-    
-    EvictLRUTiles();
 }
