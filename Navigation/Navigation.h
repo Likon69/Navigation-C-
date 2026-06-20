@@ -99,6 +99,7 @@ public:
     
     // Tile management optimisÃ© (comme Honorbuddy)
     bool IsTileLoaded(unsigned int mapId, int x, int y);
+    bool UnloadTile(unsigned int mapId, int x, int y);
     int GetLoadedTilesCount(unsigned int mapId);
 
     // HB 6.2.3 pattern: callback when a tile is loaded (mirrors SetTileLoaderFunction)

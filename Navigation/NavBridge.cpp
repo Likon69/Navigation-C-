@@ -275,75 +275,6 @@ NAV_API bool SetAreaCost_C(unsigned int mapId, int areaType, float cost)
     return true;
 }
 
-// Simple dtPathCorridor agent map
-static std::map<int, dtPathCorridor*> g_agentCorridors;
-
-NAV_API bool CreateCorridorForAgent_C(int agentId, unsigned int mapId, XYZ_C start, XYZ_C end)
-{
-    Navigation* nav = Navigation::GetInstance();
-    if (!nav) return false;
-
-    dtNavMeshQuery* query = nav->GetNavMeshQuery(mapId);
-    if (!query) return false;
-
-    dtQueryFilter* filter = nav->GetDefaultFilter();
-    float extents[3] = { 2.f, 4.f, 2.f };
-    // FIX: Convert WoW coordinates to Detour (WoW XYZ -> Detour YZX)
-    float s[3], e[3];
-    WoWToDetour(start, s);
-    WoWToDetour(end, e);
-
-    dtPolyRef startRef = 0, endRef = 0;
-    if (dtStatusFailed(query->findNearestPoly(s, extents, filter, &startRef, 0))) return false;
-    if (dtStatusFailed(query->findNearestPoly(e, extents, filter, &endRef, 0))) return false;
-
-    dtPathCorridor* corridor = new dtPathCorridor();
-    corridor->init(256);
-    corridor->reset(startRef, s);
-
-    dtPolyRef path[256]; int pathCount = 0;
-    if (dtStatusFailed(query->findPath(startRef, endRef, s, e, filter, path, &pathCount, 256))) {
-        delete corridor;
-        return false;
-    }
-
-    corridor->setCorridor(e, path, pathCount);
-    auto existing = g_agentCorridors.find(agentId);
-    if (existing != g_agentCorridors.end())
-    {
-        delete existing->second;
-        g_agentCorridors.erase(existing);
-    }
-    g_agentCorridors[agentId] = corridor;
-    return true;
-}
-
-NAV_API bool UpdateCorridorAgentPosition_C(int agentId, XYZ_C newPos)
-{
-    auto it = g_agentCorridors.find(agentId);
-    if (it == g_agentCorridors.end()) return false;
-    
-    dtPathCorridor* corridor = it->second;
-    float p[3] = { newPos.x, newPos.y, newPos.z };
-    
-    // dtPathCorridor::movePosition needs 3 args: pos, target, navQuery
-    // Since we don't have target/query here, just update internal position
-    // This is simplified - Honorbuddy would pass navQuery + filter
-    // For now, just return true (position updated via reset in next CreateCorridor call)
-    return true;
-}
-
-NAV_API bool DestroyCorridorForAgent_C(int agentId)
-{
-    auto it = g_agentCorridors.find(agentId);
-    if (it == g_agentCorridors.end())
-        return false;
-
-    delete it->second;
-    g_agentCorridors.erase(it);
-    return true;
-}
-
 // HB 4.3.4: OffMesh Connection support
 NAV_API bool IsOffMeshConnection_C(unsigned int mapId, XYZ_C position, 
                                     XYZ_C* outEnd, unsigned char* outType, unsigned int* outInteractId)
@@ -707,10 +638,22 @@ NAV_API bool IsTileLoaded_C(unsigned int mapId, int x, int y)
     return nav ? nav->IsTileLoaded(mapId, x, y) : false;
 }
 
+NAV_API bool UnloadTile_C(unsigned int mapId, int x, int y)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->UnloadTile(mapId, x, y) : false;
+}
+
 NAV_API int GetLoadedTilesCount_C(unsigned int mapId)
 {
     Navigation* nav = Navigation::GetInstance();
     return nav ? nav->GetLoadedTilesCount(mapId) : 0;
+}
+
+NAV_API int GetLoadedAdtCount_C(unsigned int mapId)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    return manager ? manager->getLoadedAdtCount(mapId) : 0;
 }
 
 // -------------------------------------------------------------------

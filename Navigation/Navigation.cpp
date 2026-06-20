@@ -1297,11 +1297,16 @@ void Navigation::SetTileLoadedCallback(MMAP::TileLoadedCallback cb)
 bool Navigation::IsTileLoaded(unsigned int mapId, int x, int y)
 {
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
-    if (!navMesh) return false;
-    
-    const dtMeshTile* tile = navMesh->getTileAt(x, y, 0);
-    return (tile != nullptr && tile->header != nullptr);
+    return manager && manager->isTileLoaded(mapId, x, y);
+}
+
+bool Navigation::UnloadTile(unsigned int mapId, int x, int y)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    if (!manager)
+        return false;
+
+    return manager->unloadTile(mapId, x, y);
 }
 
 int Navigation::GetLoadedTilesCount(unsigned int mapId)

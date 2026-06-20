@@ -47,10 +47,6 @@ NAV_API bool FindRandomPoint_C(unsigned int mapId, XYZ_C center, float radius, X
 // Set cost for area type on specified map
 NAV_API bool SetAreaCost_C(unsigned int mapId, int areaType, float cost);
 
-// Agent corridor system (dtPathCorridor wrappers)
-NAV_API bool CreateCorridorForAgent_C(int agentId, unsigned int mapId, XYZ_C start, XYZ_C end);
-NAV_API bool UpdateCorridorAgentPosition_C(int agentId, XYZ_C newPos);
-
 // HB 4.3.4: OffMesh Connection support
 // Check if position is an offmesh connection, returns type and metadata
 NAV_API bool IsOffMeshConnection_C(unsigned int mapId, XYZ_C position, 
@@ -72,8 +68,7 @@ NAV_API void EnsureTilesDirectional_C(unsigned int mapId, XYZ_C position, XYZ_C 
 NAV_API int UpdatePathFollowing_C(unsigned int mapId, XYZ_C currentPos, int pathLength,
                                    XYZ_C* pathPoints, int currentWaypointIndex, int agentId);
 
-// Corridor + telemetry helpers
-NAV_API bool DestroyCorridorForAgent_C(int agentId);
+// Telemetry helpers
 // GetNavStats_C fills outStats in-place (avoids return-by-value struct on x86 Cdecl)
 NAV_API void GetNavStats_C(NavStats_C* outStats);
 NAV_API void ResetNavStats_C();
@@ -124,7 +119,11 @@ NAV_API bool  IsPointOnNavMesh_C(unsigned int mapId, XYZ_C point, float toleranc
 
 // Tile state
 NAV_API bool IsTileLoaded_C(unsigned int mapId, int x, int y);
+// Unload a MaNGOS ADT tile. For V5 .mmtile this removes all Detour sub-tiles
+// stored inside that ADT (1 for v4, up to 16 for v5).
+NAV_API bool UnloadTile_C(unsigned int mapId, int x, int y);
 NAV_API int  GetLoadedTilesCount_C(unsigned int mapId);
+NAV_API int  GetLoadedAdtCount_C(unsigned int mapId);
 // Polygon area/flags manipulation — for blackspot marking (matches HB Tripper.RecastManaged.NavMesh)
 NAV_API unsigned int SetPolyArea_C(unsigned int mapId, uint64_t polyRef, unsigned char area);
 NAV_API unsigned int GetPolyArea_C(unsigned int mapId, uint64_t polyRef, unsigned char* outArea);

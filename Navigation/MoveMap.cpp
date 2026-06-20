@@ -390,6 +390,24 @@ namespace MMAP
 		return !anyFailed;
 	}
 
+	bool MMapManager::isTileLoaded(unsigned int mapId, int x, int y) const
+	{
+		auto mapIt = loadedMMaps.find(mapId);
+		if (mapIt == loadedMMaps.end())
+			return false;
+
+		unsigned int packedGridPos = (static_cast<unsigned int>(x) << 16) | static_cast<unsigned int>(y);
+		return mapIt->second->mmapLoadedTiles.find(packedGridPos) != mapIt->second->mmapLoadedTiles.end();
+	}
+
+	int MMapManager::getLoadedAdtCount(unsigned int mapId) const
+	{
+		auto mapIt = loadedMMaps.find(mapId);
+		if (mapIt == loadedMMaps.end())
+			return 0;
+		return static_cast<int>(mapIt->second->mmapLoadedTiles.size());
+	}
+
 	dtNavMesh const* MMapManager::GetNavMesh(unsigned int mapId)
 	{
 		if (loadedMMaps.find(mapId) == loadedMMaps.end())

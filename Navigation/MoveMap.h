@@ -86,6 +86,12 @@ namespace MMAP
 
 		bool loadMap(unsigned int mapId, int x, int y);
 		bool unloadTile(unsigned int mapId, int x, int y);
+		bool isTileLoaded(unsigned int mapId, int x, int y) const;
+
+		// Phase C: returns the number of ADT tiles loaded for a map.
+		// Each ADT contains up to 16 Detour sub-tiles (V5 4x4 format), so this differs
+		// from counting Detour tiles via dtNavMesh::getMaxTiles().
+		int getLoadedAdtCount(unsigned int mapId) const;
 
 		void SetTileLoadedCallback(TileLoadedCallback cb) { _tileLoadedCallback = cb; }
 		TileLoadedCallback GetTileLoadedCallback() const { return _tileLoadedCallback; }
