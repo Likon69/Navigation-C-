@@ -27,15 +27,168 @@ The mmap format is auto-detected from the file header (`MMAP_VERSION = 4` or `MM
 - `1x1` : variant for MaNGOS 1x1 mmap files (MMAP v4)
 - `test-1x1` : experimental branch for 1x1 mode
 
-## Reference for 1x1
+## Public C API
 
-The 1x1 path is also based on the MaNGOS extractor pipeline. The canonical source for the 1x1 movemap generator lives at:
+The wrapper exposes a flat C ABI declared in `Navigation/NavBridge.h`. Every function uses the Cdecl calling convention and is annotated with `NAV_API` (`__declspec(dllexport)` on Windows). The C# side calls into it through `DllImport` from `CopilotBuddy.NativeMethods`.
 
+### Coordinate and status types
+
+```c
+typedef struct { float x, y, z; } XYZ_C;
+
+typedef struct PathResult {
+    XYZ* points;                          // waypoint positions
+    StraightPathFlags* straightPathFlags; // per-point flags (offmesh start/end, etc.)
+    unsigned char* polyTypes;            // dtPolyType per waypoint
+    unsigned char* abilityFlags;         // HB-style per-waypoint flags
+    uint64_t* polyRefs;                  // dtPolyRef per waypoint
+    int length;
+    uint32_t status;                     // NavStatusFlag bitfield
+    NavPathFindStep failStep;            // step at which a failure occurred
+} PathResult;
+
+typedef struct NavStats_C {
+    float PathfindTimeMs;
+    int   PolysVisited;
+    float PathLength;
+    int   ShortcutsApplied;
+    int   StuckRecoveries;
+    int   PathRecalculations;
+} NavStats_C;
 ```
-C:\Users\Texy6\Desktop\newhcb\Navigation View3D\Extractor_projects-master\mangostwo-server\src\tools\Extractor_projects
+
+`NavStatusFlag` mirrors the Detour `dtStatus` bit field: `NAV_FAILURE`, `NAV_SUCCESS`, `NAV_IN_PROGRESS`, `NAV_PARTIAL_RESULT`, `NAV_OUT_OF_MEMORY`, `NAV_INVALID_PARAM`, `NAV_BUFFER_TOO_SMALL`, `NAV_OUT_OF_NODES`, `NAV_WRONG_MAGIC`, `NAV_WRONG_VERSION`.
+
+### Loader
+
+| Function | Purpose |
+| --- | --- |
+| `bool Nav_LoadMaps()` | Resolve the mmap folder (a `mmaps\` directory sitting next to the DLL) and initialise every map file. |
+| `void Nav_UnloadMaps()` | Release every loaded map and tile. |
+
+### Pathfinding
+
+| Function | Purpose |
+| --- | --- |
+| `XYZ_C* CalculatePath_C(mapId, start, end, straightPath, *outLength)` | Basic A* query. Returns a heap-allocated `XYZ_C[]` freed with `FreePathArr_C`. |
+| `void FreePathArr_C(arr)` | Free the array returned by `CalculatePath_C`. |
+| `PathResult* CalculatePathEx(mapId, start, end, straightPath)` | Full result with status, poly refs, flags. Free with `FreePathResult`. |
+| `void FreePathResult(result)` | Free a `PathResult` and every owned buffer. |
+
+### Sliced pathfinding (HB-style, frame-budgeted)
+
+| Function | Purpose |
+| --- | --- |
+| `bool InitSlicedFindPath(mapId, start, end)` | Begin a sliced search for the given map. |
+| `bool UpdateSlicedFindPath(int maxIterations)` | Advance the search by N iterations. |
+| `bool UpdateSlicedFindPathMs(float msBudget)` | Advance the search until the time budget is consumed. |
+| `XYZ_C* FinalizeSlicedFindPath(int maxPathSize, *outLength)` | Produce the final waypoint array once the search has succeeded. |
+
+### Queries
+
+| Function | Purpose |
+| --- | --- |
+| `bool Raycast_C(mapId, start, end, *hitPos, *tHit)` | Cast a segment against the navmesh. |
+| `bool HasLineOfSight_C(mapId, start, end)` | Pure LOS test (no hit output). |
+| `bool FindNearestPoint_C(mapId, position, *nearest)` | Snap to the closest valid navmesh point. |
+| `bool FindNearestPointEx_C(mapId, position, ex, ey, ez, *nearest)` | Snap with custom search extents. |
+| `bool FindRandomPoint_C(mapId, center, radius, *randomPoint)` | Uniform random navigable point. |
+| `bool IsPointOnNavMesh_C(mapId, point, tolerance)` | Membership test. |
+| `float FindDistanceToWall_C(mapId, position, maxRadius, *hitPoint)` | Distance to the nearest wall. |
+| `float FindDistanceToWallEx_C(...)` | Same plus the wall normal. |
+| `float FindDistanceToWallFromPoly_C(mapId, polyRef, ...)` | Distance-to-wall from a known polygon. |
+
+### Low-level Detour helpers
+
+| Function | Purpose |
+| --- | --- |
+| `bool FindNearestPolyRef_C(mapId, pos, extents, *polyRef, *nearestPoint)` | Resolve a `dtPolyRef`. |
+| `bool GetPolyHeight_C(mapId, polyRef, pos, *height)` | Sample polygon height at X/Z. |
+| `bool ClosestPointOnPoly_C(mapId, polyRef, pos, *closest)` | Closest point inside the polygon. |
+| `bool ClosestPointOnPolyBoundary_C(...)` | Closest point on the polygon boundary. |
+| `int QueryPolygons_C(mapId, center, extents, *polys, maxPolys)` | Bulk polygon query. |
+| `int FindLocalNeighbourhood_C(mapId, startRef, center, radius, *polys, *parents, maxResults)` | BFS neighbourhood. |
+| `int GetPolyWallSegments_C(mapId, polyRef, *segStart, *segEnd, maxSegments)` | Edge segments of a polygon. |
+| `int FindPolysAroundCircle(mapId, center, radius, *results, maxResults)` | Polys whose centroid lies inside the circle. |
+| `bool Raycast_HB_C(mapId, startRef, start, end, *t, *hitNormal, *path, *pathCount, maxPath)` | HB-style raycast that exposes the visited poly corridor. |
+
+### Tile and area filtering
+
+| Function | Purpose |
+| --- | --- |
+| `void SetIncludeFlags_C(uint16 flags)` / `GetIncludeFlags_C()` | Restrict A* to matching polygon flags. |
+| `void SetExcludeFlags_C(uint16 flags)` / `GetExcludeFlags_C()` | Skip matching polygon flags. |
+| `bool SetAreaCost_C(mapId, areaType, cost)` / `GetAreaCost_C(areaId)` | Per-area traversal cost (used for blackspot penalties). |
+| `void WorldToTile_C(x, z, *tileX, *tileY)` | Convert world coordinates to ADT tile indices. |
+| `void EnsureTiles_C(mapId, position, ring)` | Pre-load a square ring of tiles around a position. |
+| `void EnsureTilesDirectional_C(mapId, position, velocity, ring)` | Asymmetric pre-load biased along the movement vector. |
+| `int UpdatePathFollowing_C(mapId, currentPos, pathLength, pathPoints, currentWaypointIndex, agentId)` | Advance a stored path through the next waypoint. |
+| `bool IsTileLoaded_C(mapId, x, y)` | Tile loaded? |
+| `bool UnloadTile_C(mapId, x, y)` | Drop a tile (and every Detour sub-tile it contains for V5). |
+| `int GetLoadedTilesCount_C(mapId)` | Detour tiles currently resident. |
+| `int GetLoadedAdtCount_C(mapId)` | ADT tiles currently resident. |
+
+### Polygon area and flags (blackspot marking)
+
+| Function | Purpose |
+| --- | --- |
+| `uint SetPolyArea_C(mapId, polyRef, area)` | Override the polygon area type. |
+| `uint GetPolyArea_C(mapId, polyRef, *area)` | Read the current area type. |
+| `uint SetPolyFlags_C(mapId, polyRef, flags)` | Override polygon traversal flags. |
+| `uint GetPolyFlags_C(mapId, polyRef, *flags)` | Read the current flags. |
+
+### Off-mesh connections
+
+| Function | Purpose |
+| --- | --- |
+| `bool IsOffMeshConnection_C(mapId, position, *outEnd, *outType, *outInteractId)` | Inspect an offmesh connection at a position. |
+| `void AddOffMeshConnection_C(mapId, start, end, radius, flags, type, interactId)` | Register a custom offmesh connection at runtime. |
+| `bool LoadTileOffMesh_C(mapId, tileX, tileY)` | Force-load offmesh connections for a tile. |
+
+### Telemetry
+
+| Function | Purpose |
+| --- | --- |
+| `void GetNavStats_C(NavStats_C* outStats)` | Read counters for the last pathfinding call. |
+| `void ResetNavStats_C()` | Zero every counter. |
+
+### Callbacks
+
+```c
+typedef void (__stdcall *NavBridgeTileLoadedCallback)(unsigned int mapId, int x, int y);
+NAV_API void SetTileLoadedCallback_C(NavBridgeTileLoadedCallback callback);
+
+typedef void (__stdcall *NavLogCallbackFn)(const char* msg);
+NAV_API void SetNavLogCallback_C(NavLogCallbackFn callback);
 ```
 
-That repo is a fork of the MaNGOS two (MangosTwo) extractor tools and contains the `Movemap-Generator` that produces the MMAP v4 1x1 tile files this wrapper reads. The MaNGOS project itself is at https://www.getmangos.eu and supports clients 1.12.x, 2.4.3, 3.3.5a, 4.3.4a and 5.4.8.
+Tile-load and log events are forwarded into the C# logger (see `OnNavigatorLogMessage` in CopilotBuddy). The callbacks follow the HB calling convention so the C# side can marshal them directly.
+
+### Status helpers
+
+```c
+uint32_t NavStatus_FailureFlag(void);
+uint32_t NavStatus_SuccessFlag(void);
+uint32_t NavStatus_InProgressFlag(void);
+uint32_t NavStatus_PartialResultFlag(void);
+bool     NavStatus_IsFailure(uint32_t status);
+bool     NavStatus_IsSuccess(uint32_t status);
+bool     NavStatus_IsInProgress(uint32_t status);
+bool     NavStatus_HasFlag(uint32_t status, uint32_t flag);
+```
+
+### Raw object access
+
+```c
+void* GetNavMeshQuery(unsigned int mapId); // dtNavMeshQuery*, cast on the C# side
+void* GetDefaultFilter(void);              // dtQueryFilter*, cast on the C# side
+```
+
+These two pointers expose the underlying Detour objects for advanced callers. They remain valid until `Nav_UnloadMaps` is called.
+
+### Memory ownership
+
+Every pointer returned across the boundary is owned by the DLL and must be released with the matching `_C` / `Ex` free function (`FreePathArr_C`, `FreePathResult`). Buffers filled in-place through `out*` parameters are caller-allocated.
 
 ## Build with Visual Studio
 
