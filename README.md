@@ -1,12 +1,22 @@
 # Navigation C++
 
-C++ wrapper around Recast/Detour that provides pathfinding to CopilotBuddy.
+C++ wrapper around Recast/Detour that provides pathfinding to CopilotBuddy. Faithful port of Honorbuddy's `Tripper.RecastManager` (WoD / Legion): same public C API, same struct layouts, same call ordering — CopilotBuddy's C# `NativeMethods` P/Invoke layer calls into it without changes.
 
 This repository is part of the broader CopilotBuddy project. The bot, its WPF UI and the .NET runtime live in the `CopilotBuddy` repository; the offline extractor tools that produce the mmap tiles this wrapper consumes live in the `Extractor_projects` fork of MaNGOS two. All three repositories evolve together, with updates announced on the CopilotBuddy Discord.
 
 ## Origin
 
-This code is ported from Tripper.RecastManager of Honorbuddy (WoD and Legion versions). The public C API imitates Honorbuddy so the CopilotBuddy C# code can call it through P/Invoke without changes.
+This code is a faithful C++ port of `Tripper.RecastManager` from Honorbuddy (WoD and Legion versions). The goal is straight API parity with the original, not a redesign: any code path that calls into the Honorbuddy navmesh wrapper can call into this DLL with the same arguments and the same observable behaviour.
+
+Concretely, the port keeps:
+
+- **Public C ABI.** Function names, parameter types, calling convention and `__stdcall` callback signatures match Honorbuddy. The CopilotBuddy C# `NativeMethods` P/Invoke sites stay byte-for-byte compatible.
+- **Struct layouts.** `PathResult` (with `points`, `straightPathFlags`, `polyTypes`, `abilityFlags`, `polyRefs`, `length`, `status`, `failStep`), `NavStats_C`, and the `XYZ_C` coordinate triple use the same field order and types as the HB originals.
+- **Status and step enums.** `NavStatusFlag` mirrors Detour `dtStatus`; `NavPathFindStep` enumerates the same pathfind stages (`FIND_START_POLY`, `FIND_END_POLY`, `INIT_PATHFIND`, `UPDATE_PATHFIND`, `FINALIZE_PATHFIND`, `FIND_STRAIGHT_PATH`).
+- **Sliced search loop.** `InitSlicedFindPath` / `UpdateSlicedFindPath` / `UpdateSlicedFindPathMs` / `FinalizeSlicedFindPath` follow the HB frame-budgeted pattern, including the iteration-count and millisecond-budget entry points.
+- **HB-style raycast.** `Raycast_HB_C` exposes the visited poly corridor (`outPath`) the same way `RecastManager.Raycast` does in Honorbuddy.
+- **Blackspot API.** `SetPolyArea_C` / `SetPolyFlags_C` and their getters match the per-polygon area and flag overrides HB uses for marking forbidden zones.
+- **Off-mesh connections.** `IsOffMeshConnection_C`, `AddOffMeshConnection_C`, and `LoadTileOffMesh_C` map to the HB offmesh entry points.
 
 The porting effort itself goes back to July 2025 and went through a clean restart from scratch in October 2025. This wrapper is the result of that second attempt, kept in sync with the public release of the bot.
 
