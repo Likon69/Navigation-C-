@@ -1,24 +1,32 @@
 # Navigation C++
 
-C++ wrapper around Recast/Detour that provides pathfinding to CopilotBuddy. Faithful port of Honorbuddy's `Tripper.RecastManager` (WoD / Legion): same public C API, same struct layouts, same call ordering — CopilotBuddy's C# `NativeMethods` P/Invoke layer calls into it without changes.
+C++ wrapper around Recast/Detour that provides pathfinding to CopilotBuddy. The public C API, struct layouts and call ordering are ported from Honorbuddy's `Tripper.RecastManager` (WoD / Legion build). The tile management layer (`MoveMap.cpp`) is derived from the MaNGOS project (GPL v2, copyright 2005-2015 MaNGOS contributors). Both origins are reflected in the source.
 
-This repository is part of the broader CopilotBuddy project. The bot, its WPF UI and the .NET runtime live in the `CopilotBuddy` repository; the offline extractor tools that produce the mmap tiles this wrapper consumes live in the `Extractor_projects` fork of MaNGOS two. All three repositories evolve together, with updates announced on the CopilotBuddy Discord.
+CopilotBuddy's C# `NativeMethods` P/Invoke layer calls into this DLL without changes.
+
+This repository is part of the CopilotBuddy project. The bot, its WPF UI and the .NET runtime live in the `CopilotBuddy` repository; the extractor tools that produce the mmap tiles this wrapper consumes live in `extractor-csharp` and `Extractor_projects`. All repositories evolve together — updates announced on the Discord:
+
+=> **[Discord](https://discord.com/invite/ep5TcGMCcB)** <=
 
 ## Origin
 
-This code is a faithful C++ port of `Tripper.RecastManager` from Honorbuddy (WoD and Legion versions). The goal is straight API parity with the original, not a redesign: any code path that calls into the Honorbuddy navmesh wrapper can call into this DLL with the same arguments and the same observable behaviour.
+The wrapper is built from two distinct sources:
+
+**Tile management (`MoveMap.cpp`, `MoveMap.h`, `MoveMapSharedDefines.h`)** — derived from the MaNGOS open-source server project (GPL v2, copyright 2005-2015 MaNGOS contributors). The tile loading, ADT file naming, `MMapManager` / `MMapData` structures, and the v4/v5 format dispatcher all come from this codebase, extended to support the 4x4 multi-tile format (MMAP_MULTI_TILE_VERSION = 5).
+
+**Pathfinding API (`PathFinder.cpp`, `DllMain.cpp`, `NavBridge.h`, `OffMeshManager.cpp`)** — ported from `Tripper.RecastManager.dll` as found in Honorbuddy 6.2.3 (WoD / Legion). The DLL was decompiled and its methods, struct layouts and call sequences reproduced in C++ on top of the upstream Recast/Detour library. The navmesh query init value (748983) and the HB-style sliced pathfinding pattern both come directly from that decompile.
 
 Concretely, the port keeps:
 
-- **Public C ABI.** Function names, parameter types, calling convention and `__stdcall` callback signatures match Honorbuddy. The CopilotBuddy C# `NativeMethods` P/Invoke sites stay byte-for-byte compatible.
+- **Public C ABI.** Function names, parameter types, calling convention and `__stdcall` callback signatures match Honorbuddy. The CopilotBuddy C# `NativeMethods` P/Invoke sites stay compatible.
 - **Struct layouts.** `PathResult` (with `points`, `straightPathFlags`, `polyTypes`, `abilityFlags`, `polyRefs`, `length`, `status`, `failStep`), `NavStats_C`, and the `XYZ_C` coordinate triple use the same field order and types as the HB originals.
 - **Status and step enums.** `NavStatusFlag` mirrors Detour `dtStatus`; `NavPathFindStep` enumerates the same pathfind stages (`FIND_START_POLY`, `FIND_END_POLY`, `INIT_PATHFIND`, `UPDATE_PATHFIND`, `FINALIZE_PATHFIND`, `FIND_STRAIGHT_PATH`).
-- **Sliced search loop.** `InitSlicedFindPath` / `UpdateSlicedFindPath` / `UpdateSlicedFindPathMs` / `FinalizeSlicedFindPath` follow the HB frame-budgeted pattern, including the iteration-count and millisecond-budget entry points.
+- **Sliced search loop.** `InitSlicedFindPath` / `UpdateSlicedFindPath` / `UpdateSlicedFindPathMs` / `FinalizeSlicedFindPath` follow the HB frame-budgeted pattern.
 - **HB-style raycast.** `Raycast_HB_C` exposes the visited poly corridor (`outPath`) the same way `RecastManager.Raycast` does in Honorbuddy.
 - **Blackspot API.** `SetPolyArea_C` / `SetPolyFlags_C` and their getters match the per-polygon area and flag overrides HB uses for marking forbidden zones.
 - **Off-mesh connections.** `IsOffMeshConnection_C`, `AddOffMeshConnection_C`, and `LoadTileOffMesh_C` map to the HB offmesh entry points.
 
-The porting effort itself goes back to July 2025 and went through a clean restart from scratch in October 2025. This wrapper is the result of that second attempt, kept in sync with the public release of the bot.
+The porting effort started in July 2025. After a first attempt that was scrapped, the wrapper was restarted from scratch in October 2025 and kept in sync with the public release of the bot in January 2026.
 
 ## What the wrapper does
 
@@ -33,9 +41,9 @@ The mmap format is auto-detected from the file header (`MMAP_VERSION = 4` or `MM
 
 ## Branches
 
-- `master` : main branch, Trinity 4x4 format (MMAP v5)
-- `1x1` : variant for MaNGOS 1x1 mmap files (MMAP v4)
-- `test-1x1` : experimental branch for 1x1 mode
+- `master` — Trinity 4x4 format (MMAP v5)
+- `1x1` — MaNGOS 1x1 mmap files (MMAP v4)
+- `test-1x1` — experimental 1x1 work
 
 ## Public C API
 
@@ -208,8 +216,8 @@ The mmap files are produced by the offline extractor and live as one file per AD
 
 | | 1x1 (v4) | 4x4 (v5) |
 | --- | --- | --- |
-| Producer | MaNGOS two `Movemap-Generator` | TrinityCore `mmaps-generator` |
-| Header | `MmapTileHeader` (single blob) | `magic` + `dtVersion` + `mmapVersion=5` + `tileCount` + `flags` |
+| Producer | MaNGOS `Movemap-Generator` (C++ extractor) | `extractor-csharp` (C# extractor, this project) |
+| Header | `MmapTileHeader` (single blob) | `MmapMultiTileHeader`: `magic` + `dtVersion` + `mmapVersion=5` + `tileCount` + `flags` |
 | Detour tiles per ADT | 1 (the whole 533 yard ADT) | up to 16 sub-tiles of ~133 yards |
 | Sub-tile storage | n/a | inline blobs after the header, one `dtTileRef` slot each |
 | Empty slots | n/a | `blobSize == 0` -> placeholder `dtTileRef = 0` skipped by Detour |
@@ -225,7 +233,7 @@ Both formats use the same world-to-ADT mapping: a 64x64 grid with 533.33-yard ti
 - `mmapVersion == 4` -> rewinds, reads the legacy `MmapTileHeader`, allocates the single blob, and registers it as one Detour tile.
 - anything else -> rejected, the file is not loaded.
 
-There is no compile-time switch: the same binary loads v4 and v5 files, and you can mix them map-by-map on a single runtime (one map v4, another v5, etc.). `UnloadTile_C` walks the full vector of refs for the ADT, so a v4 ADT removes 1 Detour tile and a v5 ADT removes up to 16.
+There is no compile-time switch: the same binary loads v4 and v5 files, and you can mix them map-by-map on a single runtime. `UnloadTile_C` walks the full vector of refs for the ADT, so a v4 ADT removes 1 Detour tile and a v5 ADT removes up to 16.
 
 ### Differences exposed through the C API
 
@@ -234,7 +242,7 @@ The exported function set is identical between the two formats — same names, s
 | Counter | 1x1 (v4) | 4x4 (v5) |
 | --- | --- | --- |
 | `GetLoadedAdtCount_C(mapId)` | 1 per loaded ADT | 1 per loaded ADT |
-| `GetLoadedTilesCount_C(mapId)` | 1 per loaded ADT | 1 to 16 per loaded ADT (depends on which sub-tiles of the ADT are resident) |
+| `GetLoadedTilesCount_C(mapId)` | 1 per loaded ADT | 1 to 16 per loaded ADT |
 | `IsTileLoaded_C(mapId, x, y)` | ADT presence | ADT presence (true even when only some sub-tiles are resident) |
 | `UnloadTile_C(mapId, x, y)` | removes 1 Detour tile | removes every resident sub-tile of the ADT |
 
@@ -242,10 +250,10 @@ Use the ratio `GetLoadedTilesCount_C / GetLoadedAdtCount_C` to detect at runtime
 
 ### Caller-visible behavioural differences
 
-- **Granularity.** v4 queries snap within a single 533-yard tile. v5 queries snap within a 133-yard sub-tile. The latter gives finer boundary handling but exposes more seams in the navmesh (rare edge cases where two polygons from different sub-tiles should be stitched but are not).
-- **Preload footprint.** `EnsureTiles_C(mapId, position, ring)` and `EnsureTilesDirectional_C(...)` work at ADT granularity in both formats. For v5, loading one ADT pulls up to 16 sub-tiles into memory at once, so a `ring = 1` pre-load typically brings 9 ADTs (~144 sub-tiles) versus 9 ADTs (9 tiles) under v4. Memory pressure differs accordingly.
-- **Unloading.** v5 lets the engine unload a single sub-tile through `dtNavMesh::removeTile`, but the public wrapper API only exposes ADT-level unload (`UnloadTile_C`). Partial sub-tile eviction is therefore not reachable from C#.
-- **Off-mesh connections.** Both formats call `OffMeshManager::LoadTileOffMeshConnections(mapId, x, y)` after the ADT is registered. The off-mesh record count is identical between the two formats; only the Detour tile partitioning differs.
+- **Granularity.** v4 queries snap within a single 533-yard tile. v5 queries snap within a 133-yard sub-tile.
+- **Preload footprint.** `EnsureTiles_C(mapId, position, ring)` works at ADT granularity in both formats. For v5, loading one ADT pulls up to 16 sub-tiles into memory at once.
+- **Unloading.** v5 lets the engine unload a single sub-tile through `dtNavMesh::removeTile`, but the public wrapper API only exposes ADT-level unload (`UnloadTile_C`).
+- **Off-mesh connections.** Both formats call `OffMeshManager::LoadTileOffMeshConnections(mapId, x, y)` after the ADT is registered.
 - **HB-style raycast and polygon queries.** No code path branches on `mmapVersion`. `Raycast_HB_C`, `FindNearestPolyRef_C`, `QueryPolygons_C`, etc. behave identically.
 
 ### Picking a format at build time
@@ -256,7 +264,7 @@ The branches in this repository reflect the chosen on-disk format, not the API:
 - `1x1` -> MaNGOS 1x1 (v4) mmap files
 - `test-1x1` -> experimental 1x1 work
 
-The C API and the public behaviour described in this README are the same on every branch. The only difference between `master` and `1x1` is which format the loader accepts at runtime and which extractor must be used to produce the mmap files in the first place.
+The C API and the public behaviour described in this README are the same on every branch. The only difference between `master` and `1x1` is which format the loader accepts at runtime and which extractor must be used to produce the mmap files.
 
 ## Build with Visual Studio
 
@@ -270,8 +278,8 @@ The project only depends on Recast/Detour (vendored under `Navigation/Detour/`) 
 
 ## Contributing
 
-Appropriate contributions are welcome: bug reports with reproducible mmap files, raycast or pathfinding edge cases, performance improvements, and updates to keep the wrapper aligned with future Honorbuddy API changes.
+Appropriate contributions are welcome: bug reports with reproducible mmap files, raycast or pathfinding edge cases, performance improvements.
 
-Updates to this wrapper ship alongside CopilotBuddy and are announced on the Discord. If you are submitting a pull request, please include a small test case (a single .mmtile file plus start and end coordinates) so the change can be validated against the existing behavior.
+Updates to this wrapper ship alongside CopilotBuddy. If you are submitting a pull request, please include a small test case (a single .mmtile file plus start and end coordinates) so the change can be validated against the existing behavior.
 
-A sincere thank you to the community around CopilotBuddy. The bug reports and shared test cases on the Discord and the issue tracker are what keep this wrapper moving forward, and the support is very much appreciated.
+=> **[Discord](https://discord.com/invite/ep5TcGMCcB)** <=
