@@ -129,6 +129,22 @@ NAV_API unsigned int SetPolyArea_C(unsigned int mapId, uint64_t polyRef, unsigne
 NAV_API unsigned int GetPolyArea_C(unsigned int mapId, uint64_t polyRef, unsigned char* outArea);
 NAV_API unsigned int SetPolyFlags_C(unsigned int mapId, uint64_t polyRef, unsigned short flags);
 NAV_API unsigned int GetPolyFlags_C(unsigned int mapId, uint64_t polyRef, unsigned short* outFlags);
+// HB 6.2.3 NavMesh.EncodePolyId / DecodePolyId*
+NAV_API uint64_t EncodePolyId_C(unsigned int mapId, unsigned int salt, unsigned int it, unsigned int ip);
+NAV_API void DecodePolyId_C(unsigned int mapId, uint64_t polyRef,
+                              unsigned int* outSalt, unsigned int* outIt, unsigned int* outIp);
+NAV_API unsigned int DecodePolyIdSalt_C(unsigned int mapId, uint64_t polyRef);
+NAV_API unsigned int DecodePolyIdTile_C(unsigned int mapId, uint64_t polyRef);
+NAV_API unsigned int DecodePolyIdPoly_C(unsigned int mapId, uint64_t polyRef);
+// HB 6.2.3 NavMesh.GetMaxTiles
+NAV_API int GetMaxTiles_C(unsigned int mapId);
+// HB 6.2.3 NavMesh.GetTile* — returns an opaque tile handle (IntPtr on the C# side)
+NAV_API const void* GetTileAt_C(unsigned int mapId, int x, int y);
+NAV_API const void* GetTile_C(unsigned int mapId, int i);
+// HB 6.2.3 NavMesh tile state save/restore — tile is the handle from GetTileAt/GetTile
+NAV_API int  GetTileStateSize_C(unsigned int mapId, const void* tile);
+NAV_API unsigned int StoreTileState_C(unsigned int mapId, const void* tile, unsigned char* outData, int maxDataSize);
+NAV_API unsigned int RestoreTileState_C(unsigned int mapId, void* tile, const unsigned char* data, int dataSize);
 // HB-style raycast — resolves start poly and exposes visited poly corridor
 // outPath receives uint64_t poly refs (ToExternalRef converted, 32->64 bit)
 NAV_API unsigned int Raycast_HB_C(unsigned int mapId, uint64_t startRef,

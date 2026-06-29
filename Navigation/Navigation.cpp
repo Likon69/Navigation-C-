@@ -892,6 +892,125 @@ unsigned int Navigation::GetPolyFlags(unsigned int mapId, dtPolyRef polyRef, uns
     return navMesh->getPolyFlags(polyRef, outFlags);
 }
 
+int Navigation::GetMaxTiles(unsigned int mapId)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+    return navMesh->getMaxTiles();
+}
+
+dtPolyRef Navigation::EncodePolyId(unsigned int mapId, unsigned int salt, unsigned int it, unsigned int ip)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+    return navMesh->encodePolyId(salt, it, ip);
+}
+
+void Navigation::DecodePolyId(unsigned int mapId, dtPolyRef polyRef, unsigned int* outSalt, unsigned int* outIt, unsigned int* outIp)
+{
+    if (!polyRef || !outSalt || !outIt || !outIp)
+        return;
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return;
+    unsigned int salt = 0, it = 0, ip = 0;
+    navMesh->decodePolyId(polyRef, salt, it, ip);
+    *outSalt = salt;
+    *outIt   = it;
+    *outIp   = ip;
+}
+
+unsigned int Navigation::DecodePolyIdSalt(unsigned int mapId, dtPolyRef polyRef)
+{
+    if (!polyRef) return 0;
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+    return (unsigned int)navMesh->decodePolyIdSalt(polyRef);
+}
+
+unsigned int Navigation::DecodePolyIdTile(unsigned int mapId, dtPolyRef polyRef)
+{
+    if (!polyRef) return 0;
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+    return (unsigned int)navMesh->decodePolyIdTile(polyRef);
+}
+
+unsigned int Navigation::DecodePolyIdPoly(unsigned int mapId, dtPolyRef polyRef)
+{
+    if (!polyRef) return 0;
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+    return (unsigned int)navMesh->decodePolyIdPoly(polyRef);
+}
+
+const void* Navigation::GetTileAt(unsigned int mapId, int x, int y)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return nullptr;
+    // HB 6.2.3 GetTileAt only takes (x, y) — Detour's getTileAt also takes
+    // a layer parameter. V4 mmtiles have a single layer, so we pass 0.
+    return navMesh->getTileAt(x, y, 0);
+}
+
+const void* Navigation::GetTile(unsigned int mapId, int i)
+{
+    if (i < 0) return nullptr;
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return nullptr;
+    return navMesh->getTile(i);
+}
+
+int Navigation::GetTileStateSize(unsigned int mapId, const void* tile)
+{
+    if (!tile) return 0;
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+    return navMesh->getTileStateSize(static_cast<const dtMeshTile*>(tile));
+}
+
+unsigned int Navigation::StoreTileState(unsigned int mapId, const void* tile, unsigned char* outData, int maxDataSize)
+{
+    if (!tile || !outData || maxDataSize <= 0)
+        return static_cast<unsigned int>(DT_FAILURE | DT_INVALID_PARAM);
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return static_cast<unsigned int>(DT_FAILURE);
+    return static_cast<unsigned int>(navMesh->storeTileState(
+        static_cast<const dtMeshTile*>(tile), outData, maxDataSize));
+}
+
+unsigned int Navigation::RestoreTileState(unsigned int mapId, void* tile, const unsigned char* data, int dataSize)
+{
+    if (!tile || !data || dataSize <= 0)
+        return static_cast<unsigned int>(DT_FAILURE | DT_INVALID_PARAM);
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    // restoreTileState is non-const on the tile, so the navMesh must be non-const too.
+    dtNavMesh* navMesh = const_cast<dtNavMesh*>(manager->GetNavMesh(mapId));
+    if (!navMesh)
+        return static_cast<unsigned int>(DT_FAILURE);
+    return static_cast<unsigned int>(navMesh->restoreTileState(
+        static_cast<dtMeshTile*>(tile), data, dataSize));
+}
+
 int Navigation::QueryPolygons(unsigned int mapId, XYZ center, XYZ extents, dtPolyRef* outPolys, int maxPolys)
 {
     if (!outPolys || maxPolys <= 0)

@@ -63,7 +63,34 @@ public:
     // Returns dtStatus, t=1.0 means no hit (clear path)
     unsigned int Raycast(unsigned int mapId, dtPolyRef startRef, XYZ startPos, XYZ endPos,
         float* outT, XYZ* outHitNormal, dtPolyRef* outPath, int* outPathCount, int maxPath);
-    
+
+    // HB 6.2.3 NavMesh.GetMaxTiles
+    int GetMaxTiles(unsigned int mapId);
+
+    // HB 6.2.3 NavMesh.EncodePolyId / DecodePolyId*
+    // mapId is needed to resolve the dtNavMesh instance (Detour's decode uses
+    // m_saltBits/m_tileBits/m_polyBits which are per-mesh). HB 6.2.3 has a
+    // single mesh (this._mesh), CopilotBuddy has many.
+    dtPolyRef EncodePolyId(unsigned int mapId, unsigned int salt, unsigned int it, unsigned int ip);
+    void DecodePolyId(unsigned int mapId, dtPolyRef polyRef, unsigned int* outSalt, unsigned int* outIt, unsigned int* outIp);
+    unsigned int DecodePolyIdSalt(unsigned int mapId, dtPolyRef polyRef);
+    unsigned int DecodePolyIdTile(unsigned int mapId, dtPolyRef polyRef);
+    unsigned int DecodePolyIdPoly(unsigned int mapId, dtPolyRef polyRef);
+
+    // HB 6.2.3 NavMesh.GetTile* — returns opaque tile pointer (cast on C# side as IntPtr)
+    // nullptr when tile is not present at the given index/coord.
+    const void* GetTileAt(unsigned int mapId, int x, int y);
+    const void* GetTile(unsigned int mapId, int i);
+
+    // HB 6.2.3 NavMesh tile state save/restore — tile is the opaque pointer
+    // returned by GetTileAt/GetTile. mapId is needed to resolve the dtNavMesh
+    // instance (Detour's getTileStateSize/storeTileState are dtNavMesh methods,
+    // not free functions). outData must be at least maxDataSize bytes
+    // (caller-allocated buffer, see GetTileStateSize for the required size).
+    int GetTileStateSize(unsigned int mapId, const void* tile);
+    unsigned int StoreTileState(unsigned int mapId, const void* tile, unsigned char* outData, int maxDataSize);
+    unsigned int RestoreTileState(unsigned int mapId, void* tile, const unsigned char* data, int dataSize);
+
 	bool FindNearestPolyRef(unsigned int mapId, XYZ position, XYZ extents,
 		dtPolyRef* outPolyRef, XYZ* nearestPoint);
 	bool GetPolyHeight(unsigned int mapId, dtPolyRef polyRef, XYZ position, float* outHeight);

@@ -689,6 +689,85 @@ NAV_API unsigned int GetPolyFlags_C(unsigned int mapId, uint64_t polyRef, unsign
     if (!nav) return 0x80000000u;
     return nav->GetPolyFlags(mapId, ToInternalRef(polyRef), outFlags);
 }
+
+NAV_API uint64_t EncodePolyId_C(unsigned int mapId, unsigned int salt, unsigned int it, unsigned int ip)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0u;
+    return ToExternalRef(nav->EncodePolyId(mapId, salt, it, ip));
+}
+
+NAV_API void DecodePolyId_C(unsigned int mapId, uint64_t polyRef,
+                              unsigned int* outSalt, unsigned int* outIt, unsigned int* outIp)
+{
+    if (!outSalt || !outIt || !outIp) return;
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return;
+    nav->DecodePolyId(mapId, ToInternalRef(polyRef), outSalt, outIt, outIp);
+}
+
+NAV_API unsigned int DecodePolyIdSalt_C(unsigned int mapId, uint64_t polyRef)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0u;
+    return nav->DecodePolyIdSalt(mapId, ToInternalRef(polyRef));
+}
+
+NAV_API unsigned int DecodePolyIdTile_C(unsigned int mapId, uint64_t polyRef)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0u;
+    return nav->DecodePolyIdTile(mapId, ToInternalRef(polyRef));
+}
+
+NAV_API unsigned int DecodePolyIdPoly_C(unsigned int mapId, uint64_t polyRef)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0u;
+    return nav->DecodePolyIdPoly(mapId, ToInternalRef(polyRef));
+}
+
+NAV_API int GetMaxTiles_C(unsigned int mapId)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0;
+    return nav->GetMaxTiles(mapId);
+}
+
+NAV_API const void* GetTileAt_C(unsigned int mapId, int x, int y)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return nullptr;
+    return nav->GetTileAt(mapId, x, y);
+}
+
+NAV_API const void* GetTile_C(unsigned int mapId, int i)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return nullptr;
+    return nav->GetTile(mapId, i);
+}
+
+NAV_API int GetTileStateSize_C(unsigned int mapId, const void* tile)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0;
+    return nav->GetTileStateSize(mapId, tile);
+}
+
+NAV_API unsigned int StoreTileState_C(unsigned int mapId, const void* tile, unsigned char* outData, int maxDataSize)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0x80000000u;
+    return nav->StoreTileState(mapId, tile, outData, maxDataSize);
+}
+
+NAV_API unsigned int RestoreTileState_C(unsigned int mapId, void* tile, const unsigned char* data, int dataSize)
+{
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0x80000000u;
+    return nav->RestoreTileState(mapId, tile, data, dataSize);
+}
 // -------------------------------------------------------------------
 // HB-style raycast: resolves start poly, exposes visited poly corridor.
 // Returns dtStatus; outT = hit fraction (1.0 = clear path to end).
