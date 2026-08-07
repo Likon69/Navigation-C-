@@ -29,7 +29,7 @@
 
 #define MMAP_MAGIC 0x4d4d4150   // 'MMAP'
 #define MMAP_VERSION 4
-#define MMAP_MULTI_TILE_VERSION 5  // 4×4 sub-tiles per ADT (16 Detour blobs)
+#define MMAP_MULTI_TILE_VERSION 6  // 4×4 sub-tiles per ADT (16 Detour blobs)
 #define MMAP_SUBTILES_PER_ADT 16   // 4×4 grid = 16 sub-tiles
 #define SIZE_OF_GRIDS 533.33333f
 
