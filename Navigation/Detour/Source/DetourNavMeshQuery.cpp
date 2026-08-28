@@ -144,7 +144,10 @@ dtNavMeshQuery::dtNavMeshQuery() :
 	m_nav(0),
 	m_tinyNodePool(0),
 	m_nodePool(0),
-	m_openList(0)
+	m_openList(0),
+	m_tileLoader(0),
+	m_tileLoaderUserArg(0),
+	m_loadingTiles(false)
 {
 	memset(&m_query, 0, sizeof(dtQueryData));
 }
@@ -160,6 +163,38 @@ dtNavMeshQuery::~dtNavMeshQuery()
 	dtFree(m_tinyNodePool);
 	dtFree(m_nodePool);
 	dtFree(m_openList);
+}
+
+void dtNavMeshQuery::setTileLoader(dtLoadTileFunc func, void* userArg)
+{
+	m_tileLoader = func;
+	m_tileLoaderUserArg = userArg;
+}
+
+void dtNavMeshQuery::loadNeighbourTiles(const dtMeshTile* tile) const
+{
+	if (!m_tileLoader || m_loadingTiles || !tile || !tile->header)
+		return;
+
+	static const int offsets[4][2] = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } };
+
+	const int tx = tile->header->x;
+	const int ty = tile->header->y;
+
+	m_loadingTiles = true;
+
+	for (int i = 0; i < 4; ++i)
+	{
+		const int nx = tx + offsets[i][0];
+		const int ny = ty + offsets[i][1];
+
+		if (m_nav->getTileAt(nx, ny, 0))
+			continue;
+
+		m_tileLoader(nx, ny, m_tileLoaderUserArg);
+	}
+
+	m_loadingTiles = false;
 }
 
 /// @par 
@@ -1002,7 +1037,7 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 	
 	m_nodePool->clear();
 	m_openList->clear();
-	
+
 	dtNode* startNode = m_nodePool->getNode(startRef);
 	dtVcopy(startNode->pos, startPos);
 	startNode->pidx = 0;
@@ -1011,10 +1046,10 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 	startNode->id = startRef;
 	startNode->flags = DT_NODE_OPEN;
 	m_openList->push(startNode);
-	
+
 	dtNode* lastBestNode = startNode;
 	float lastBestNodeCost = startNode->total;
-	
+
 	bool outOfNodes = false;
 	
 	while (!m_openList->empty())
@@ -1046,11 +1081,13 @@ dtStatus dtNavMeshQuery::findPath(dtPolyRef startRef, dtPolyRef endRef,
 			parentRef = m_nodePool->getNodeAtIdx(bestNode->pidx)->id;
 		if (parentRef)
 			m_nav->getTileAndPolyByRefUnsafe(parentRef, &parentTile, &parentPoly);
-		
+
+		loadNeighbourTiles(bestTile);
+
 		for (unsigned int i = bestPoly->firstLink; i != DT_NULL_LINK; i = bestTile->links[i].next)
 		{
 			dtPolyRef neighbourRef = bestTile->links[i].ref;
-			
+
 			// Skip invalid ids and do not expand back to where we came from.
 			if (!neighbourRef || neighbourRef == parentRef)
 				continue;
@@ -1257,10 +1294,10 @@ dtStatus dtNavMeshQuery::initSlicedFindPath(dtPolyRef startRef, dtPolyRef endRef
 		m_query.status = DT_SUCCESS;
 		return DT_SUCCESS;
 	}
-	
+
 	m_nodePool->clear();
 	m_openList->clear();
-	
+
 	dtNode* startNode = m_nodePool->getNode(startRef);
 	dtVcopy(startNode->pos, startPos);
 	startNode->pidx = 0;
@@ -1359,7 +1396,9 @@ dtStatus dtNavMeshQuery::updateSlicedFindPath(const int maxIter, int* doneIters)
 			if ((parentRef != 0) && (dtVdistSqr(parentNode->pos, bestNode->pos) < m_query.raycastLimitSqr))
 				tryLOS = true;
 		}
-		
+
+		loadNeighbourTiles(bestTile);
+
 		for (unsigned int i = bestPoly->firstLink; i != DT_NULL_LINK; i = bestTile->links[i].next)
 		{
 			dtPolyRef neighbourRef = bestTile->links[i].ref;

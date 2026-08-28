@@ -159,6 +159,8 @@ public:
 	virtual void process(const dtMeshTile* tile, dtPoly** polys, dtPolyRef* refs, int count) = 0;
 };
 
+typedef bool (*dtLoadTileFunc)(int x, int y, void* userArg);
+
 /// Provides the ability to perform pathfinding related queries against
 /// a navigation mesh.
 /// @ingroup detour
@@ -520,8 +522,10 @@ public:
 	/// @return The navigation mesh the query object is using.
 	const dtNavMesh* getAttachedNavMesh() const { return m_nav; }
 
+	void setTileLoader(dtLoadTileFunc func, void* userArg);
+
 	/// @}
-	
+
 private:
 	// Explicitly disabled copy constructor and copy assignment operator
 	dtNavMeshQuery(const dtNavMeshQuery&);
@@ -556,7 +560,9 @@ private:
 
 	// Gets the path leading to the specified end node.
 	dtStatus getPathToNode(struct dtNode* endNode, dtPolyRef* path, int* pathCount, int maxPath) const;
-	
+
+	void loadNeighbourTiles(const dtMeshTile* tile) const;
+
 	const dtNavMesh* m_nav;				///< Pointer to navmesh data.
 
 	struct dtQueryData
@@ -575,6 +581,10 @@ private:
 	class dtNodePool* m_tinyNodePool;	///< Pointer to small node pool.
 	class dtNodePool* m_nodePool;		///< Pointer to node pool.
 	class dtNodeQueue* m_openList;		///< Pointer to open list queue.
+
+	dtLoadTileFunc m_tileLoader;		///< On demand tile loader, or 0.
+	void* m_tileLoaderUserArg;			///< Handed back to m_tileLoader unchanged.
+	mutable bool m_loadingTiles;		///< Guards against re-entering the loader.
 };
 
 /// Allocates a query object using the Detour allocator.

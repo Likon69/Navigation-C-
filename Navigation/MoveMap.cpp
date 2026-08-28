@@ -143,6 +143,23 @@ namespace MMAP
 		result = pathToMmapFile;
 	}
 
+	void getMmapsDirectory(string& result)
+	{
+		WCHAR DllPath[MAX_PATH] = { 0 };
+		GetModuleFileNameW((HINSTANCE)&__ImageBase, DllPath, _countof(DllPath));
+		wstring ws(DllPath);
+		string pathAndFile(ws.begin(), ws.end());
+
+		size_t lastOccur = pathAndFile.find_last_of('\\');
+		if (lastOccur == string::npos)
+		{
+			result = "mmaps\\";
+			return;
+		}
+
+		result = pathAndFile.substr(0, lastOccur + 1).append("mmaps\\");
+	}
+
 	// ######################## MMapFactory ########################
 	// our global singelton copy
 	MMapManager* g_MMapManager = NULL;
@@ -188,14 +205,119 @@ namespace MMAP
 			return false;
 		}
 
-		MMapData* mmap_data = new MMapData(mesh);
+		MMapData* mmap_data = new MMapData(mesh, mapId);
 		mmap_data->mmapLoadedTiles.clear();
 
+		buildTileManifest(mapId, mmap_data);
+
 		loadedMMaps.insert(std::pair<unsigned int, MMapData*>(mapId, mmap_data));
-		
+
 		// Note: OffMesh connections now loaded per-tile in loadMap()
-		
+
 		return true;
+	}
+
+	void MMapManager::buildTileManifest(unsigned int mapId, MMapData* mmap)
+	{
+		mmap->mmapExistingTiles.clear();
+		mmap->mmapTileManifestBuilt = false;
+
+		string mapIdStr = "";
+		if (mapId < 10)
+			mapIdStr.append("00");
+		else if (mapId < 100)
+			mapIdStr.append("0");
+		mapIdStr.append(NumberToString(mapId));
+
+		string directory = "";
+		getMmapsDirectory(directory);
+
+		string pattern = directory + mapIdStr + "*.mmtile";
+
+		WIN32_FIND_DATAA findData;
+		HANDLE find = FindFirstFileA(pattern.c_str(), &findData);
+		if (find == INVALID_HANDLE_VALUE)
+			return;
+
+		const size_t prefixLength = mapIdStr.length();
+
+		do
+		{
+			if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				continue;
+
+			string name = findData.cFileName;
+			if (name.length() < prefixLength + 4)
+				continue;
+
+			bool digits = true;
+			for (size_t i = prefixLength; i < prefixLength + 4; i++)
+			{
+				if (name[i] < '0' || name[i] > '9')
+				{
+					digits = false;
+					break;
+				}
+			}
+			if (!digits)
+				continue;
+
+			int x = (name[prefixLength] - '0') * 10 + (name[prefixLength + 1] - '0');
+			int y = (name[prefixLength + 2] - '0') * 10 + (name[prefixLength + 3] - '0');
+
+			mmap->mmapExistingTiles.insert(packTileID(x, y));
+		}
+		while (FindNextFileA(find, &findData));
+
+		FindClose(find);
+
+		mmap->mmapTileManifestBuilt = !mmap->mmapExistingTiles.empty();
+	}
+
+	bool MMapManager::tileFileExists(MMapData* mmap, unsigned int packedGridPos) const
+	{
+		if (!mmap->mmapTileManifestBuilt)
+			return true;
+
+		return mmap->mmapExistingTiles.find(packedGridPos) != mmap->mmapExistingTiles.end();
+	}
+
+	void MMapManager::BeginTileLoadBatch()
+	{
+		_tileLoadBatchDepth++;
+	}
+
+	void MMapManager::EndTileLoadBatch()
+	{
+		if (_tileLoadBatchDepth > 0)
+			_tileLoadBatchDepth--;
+
+		if (_tileLoadBatchDepth > 0 || _deferredTileLoads.empty())
+			return;
+
+		std::vector<DeferredTileLoad> pending;
+		pending.swap(_deferredTileLoads);
+
+		if (!_tileLoadedCallback)
+			return;
+
+		for (size_t i = 0; i < pending.size(); i++)
+			_tileLoadedCallback(pending[i].mapId, pending[i].x, pending[i].y);
+	}
+
+	void MMapManager::raiseTileLoaded(unsigned int mapId, int x, int y)
+	{
+		if (!_tileLoadedCallback)
+			return;
+
+		if (_tileLoadBatchDepth > 0)
+		{
+			DeferredTileLoad deferred = { mapId, x, y };
+			_deferredTileLoads.push_back(deferred);
+			return;
+		}
+
+		_tileLoadedCallback(mapId, x, y);
 	}
 
 	unsigned int MMapManager::packTileID(int x, int y)
@@ -213,6 +335,9 @@ namespace MMAP
 		unsigned int packedGridPos = packTileID(x, y);
 		if (mmap->mmapLoadedTiles.find(packedGridPos) != mmap->mmapLoadedTiles.end())
 			return true;
+
+		if (!tileFileExists(mmap, packedGridPos))
+			return false;
 
 		string fileName = "";
 		getTileName(mapId, x, y, fileName);
@@ -357,8 +482,7 @@ namespace MMAP
 		OffMeshManager::Instance().LoadTileOffMeshConnections(mapId, x, y);
 
 		// HB 6.2.3 pattern: notify managed layer that a tile was loaded
-		if (_tileLoadedCallback)
-			_tileLoadedCallback(mapId, x, y);
+		raiseTileLoaded(mapId, x, y);
 
 		return true;
 	}
@@ -434,6 +558,11 @@ namespace MMAP
 			{
 				dtFreeNavMeshQuery(query);
 				return NULL;
+			}
+
+			if (_queryTileLoader)
+			{
+				query->setTileLoader(_queryTileLoader, &mmap->loaderContext);
 			}
 
 			mmap->navMeshQueries.insert(std::pair<unsigned int, dtNavMeshQuery*>(instanceId, query));

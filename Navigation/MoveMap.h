@@ -26,6 +26,7 @@
 #define MANGOS_H_MOVE_MAP
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "DetourAlloc.h"
@@ -50,9 +51,17 @@ namespace MMAP
 	typedef std::unordered_map<unsigned int, std::vector<dtTileRef>> MMapTileSet;
 	typedef std::unordered_map<unsigned int, dtNavMeshQuery*> NavMeshQuerySet;
 
+	struct QueryTileLoaderContext
+	{
+		unsigned int mapId;
+	};
+
 	struct MMapData
 	{
-		MMapData(dtNavMesh* mesh) : navMesh(mesh) {}
+		MMapData(dtNavMesh* mesh, unsigned int mapId) : navMesh(mesh)
+		{
+			loaderContext.mapId = mapId;
+		}
 		~MMapData()
 		{
 			for (NavMeshQuerySet::iterator i = navMeshQueries.begin(); i != navMeshQueries.end(); ++i)
@@ -71,6 +80,16 @@ namespace MMAP
 		// we have to use single dtNavMeshQuery for every instance, since those are not thread safe
 		NavMeshQuerySet navMeshQueries;     // instanceId to query
 		MMapTileSet mmapLoadedTiles;        // maps [map grid coords] to [dtTile]
+		std::unordered_set<unsigned int> mmapExistingTiles;
+		bool mmapTileManifestBuilt = false;
+		QueryTileLoaderContext loaderContext;
+	};
+
+	struct DeferredTileLoad
+	{
+		unsigned int mapId;
+		int x;
+		int y;
 	};
 
 	typedef std::unordered_map<unsigned int, MMapData*> MMapDataSet;
@@ -96,6 +115,11 @@ namespace MMAP
 		void SetTileLoadedCallback(TileLoadedCallback cb) { _tileLoadedCallback = cb; }
 		TileLoadedCallback GetTileLoadedCallback() const { return _tileLoadedCallback; }
 
+		void SetQueryTileLoader(dtLoadTileFunc fn) { _queryTileLoader = fn; }
+
+		void BeginTileLoadBatch();
+		void EndTileLoadBatch();
+
 		// the returned [dtNavMeshQuery const*] is NOT threadsafe
 		dtNavMeshQuery const* GetNavMeshQuery(unsigned int mapId, unsigned int instanceId);
 		dtNavMesh const* GetNavMesh(unsigned int mapId);
@@ -103,7 +127,13 @@ namespace MMAP
 		unsigned int getLoadedMapsCount() const { return loadedMMaps.size(); }
 	private:
 		TileLoadedCallback _tileLoadedCallback = nullptr;
+		dtLoadTileFunc _queryTileLoader = nullptr;
+		int _tileLoadBatchDepth = 0;
+		std::vector<DeferredTileLoad> _deferredTileLoads;
 		bool loadMapData(unsigned int mapId);
+		void buildTileManifest(unsigned int mapId, MMapData* mmap);
+		bool tileFileExists(MMapData* mmap, unsigned int packedGridPos) const;
+		void raiseTileLoaded(unsigned int mapId, int x, int y);
 		unsigned int packTileID(int x, int y);
 
 		MMapDataSet loadedMMaps;

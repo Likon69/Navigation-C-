@@ -192,7 +192,10 @@ private:
 	
 	void WorldToTile(float worldX, float worldY, int* tileX, int* tileY);
 	void GarbageCollectTiles();
-	
+
+	static bool DetourTileLoader(int x, int y, void* userArg);
+	bool LoadTileForDetour(unsigned int mapId, int detourX, int detourY);
+
 };
 
 #endif

@@ -109,6 +109,12 @@ void Navigation::Initialize()
     
     // QUICK WIN #2: Initialize adaptive sliced calibration
     _itersPerMs = 300.0f; // Conservative estimate: 300 iters per ms (will auto-calibrate)
+
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    if (manager)
+    {
+        manager->SetQueryTileLoader(&Navigation::DetourTileLoader);
+    }
 }
 
 void Navigation::Release()
@@ -139,7 +145,14 @@ XYZ* Navigation::CalculatePath(unsigned int mapId, XYZ start, XYZ end, bool stra
     pathFinder.setIncludeFlags(_includeFlags);
     pathFinder.setExcludeFlags(_excludeFlags);
     
+    MMAP::MMapManager* batchManager = MMAP::MMapFactory::createOrGetMMapManager();
+    if (batchManager)
+        batchManager->BeginTileLoadBatch();
+
     pathFinder.calculate(start.X, start.Y, start.Z, end.X, end.Y, end.Z);
+
+    if (batchManager)
+        batchManager->EndTileLoadBatch();
 
     PointsArray pointPath = pathFinder.getPath();
     *length = pointPath.size();
@@ -190,7 +203,15 @@ PathResult* Navigation::CalculatePathEx(unsigned int mapId, XYZ start, XYZ end, 
     pathFinder.setExcludeFlags(_excludeFlags);
     
     PathResult* result = new PathResult();
+
+    MMAP::MMapManager* batchManager = MMAP::MMapFactory::createOrGetMMapManager();
+    if (batchManager)
+        batchManager->BeginTileLoadBatch();
+
     pathFinder.calculate(start.X, start.Y, start.Z, end.X, end.Y, end.Z);
+
+    if (batchManager)
+        batchManager->EndTileLoadBatch();
 
     PathType pathType = pathFinder.getPathType();
     result->status = pathFinder.GetLastStatus();
@@ -1542,6 +1563,64 @@ void Navigation::WorldToTile(float worldX, float worldY, int* tileX, int* tileY)
     
     *tileX = (int)((GRID_ORIGIN - worldX) / TILE_SIZE);
     *tileY = (int)((GRID_ORIGIN - worldY) / TILE_SIZE);
+}
+
+bool Navigation::DetourTileLoader(int x, int y, void* userArg)
+{
+    MMAP::QueryTileLoaderContext* ctx = (MMAP::QueryTileLoaderContext*)userArg;
+    Navigation* nav = Navigation::GetInstance();
+
+    if (!ctx || !nav)
+        return false;
+
+    return nav->LoadTileForDetour(ctx->mapId, x, y);
+}
+
+bool Navigation::LoadTileForDetour(unsigned int mapId, int detourX, int detourY)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    if (!manager)
+        return false;
+
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return false;
+
+    const dtNavMeshParams* params = navMesh->getParams();
+    if (!params || params->tileWidth <= 0.0f || params->tileHeight <= 0.0f)
+        return false;
+
+    const float worldY = params->orig[0] + ((float)detourX + 0.5f) * params->tileWidth;
+    const float worldX = params->orig[2] + ((float)detourY + 0.5f) * params->tileHeight;
+
+    int tileX, tileY;
+    WorldToTile(worldX, worldY, &tileX, &tileY);
+
+    if (tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64)
+        return false;
+
+    TileKey key = { mapId, tileX, tileY };
+
+    if (manager->isTileLoaded(mapId, tileX, tileY))
+    {
+        auto accessed = _tileAccessTime.find(key);
+        if (accessed != _tileAccessTime.end())
+        {
+            accessed->second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::high_resolution_clock::now().time_since_epoch()
+            ).count();
+        }
+        return false;
+    }
+
+    if (!manager->loadMap(mapId, tileX, tileY))
+        return false;
+
+    _tileAccessTime[key] = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()
+    ).count();
+
+    return true;
 }
 
 // HB 6.2.3 pattern: time-based tile GC (GarbageCollectTime = 1 minute).
