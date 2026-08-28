@@ -582,9 +582,9 @@ private:
 	class dtNodePool* m_nodePool;		///< Pointer to node pool.
 	class dtNodeQueue* m_openList;		///< Pointer to open list queue.
 
-	dtLoadTileFunc m_tileLoader;		///< On demand tile loader, or 0.
-	void* m_tileLoaderUserArg;			///< Handed back to m_tileLoader unchanged.
-	mutable bool m_loadingTiles;		///< Guards against re-entering the loader.
+	dtLoadTileFunc m_tileLoader;
+	void* m_tileLoaderUserArg;
+	mutable bool m_loadingTiles;
 };
 
 /// Allocates a query object using the Detour allocator.
