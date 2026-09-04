@@ -10,8 +10,8 @@
 #include <unordered_map>
 #include <cstdint> // uint64_t for timestamps
 
-// Note: dtPolyRef is unsigned int (32-bit) by default, matching HB WoD
-// DT_POLYREF64 has been removed from PreprocessorDefinitions in vcxproj
+// Note: dtPolyRef is uint64_t — DT_POLYREF64 is defined in Navigation.vcxproj
+// (both Win32 configs), not in DetourNavMesh.h where the #define stays commented.
 
 // AMÃ‰LIORATION #2: Navigation statistics for profiling & debugging
 struct NavStats
@@ -59,7 +59,6 @@ public:
     bool HasLineOfSight(unsigned int mapId, XYZ start, XYZ end);
     
     // Raycast - HB-style raycast with full output (t, hitNormal, visited polys)
-    // Note: dtPolyRef is unsigned int (32-bit) - DT_POLYREF64 removed from vcxproj
     // Returns dtStatus, t=1.0 means no hit (clear path)
     unsigned int Raycast(unsigned int mapId, dtPolyRef startRef, XYZ startPos, XYZ endPos,
         float* outT, XYZ* outHitNormal, dtPolyRef* outPath, int* outPathCount, int maxPath);
