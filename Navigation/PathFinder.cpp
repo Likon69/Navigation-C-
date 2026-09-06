@@ -52,7 +52,7 @@ _corridorInitialized(false),
 
     MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
     m_navMesh = mmap->GetNavMesh(m_mapId);
-    m_navMeshQuery = mmap->GetNavMeshQuery(m_mapId, m_instanceId);
+    m_navMeshQuery = const_cast<dtNavMeshQuery*>(mmap->GetNavMeshQuery(m_mapId, m_instanceId));
 
 	createFilter();
 	
@@ -348,15 +348,28 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 
 		// generate suffix
 		unsigned int suffixPolyLength = 0;
-	dtResult = m_navMeshQuery->findPath(
+	dtResult = m_navMeshQuery->initSlicedFindPath(
 		suffixStartPoly,    // start polygon
 		endPoly,            // end polygon
 		suffixEndPoint,     // start position
 		endPoint,           // end position
-		m_filter,            // polygon search filter
-		m_pathPolyRefs + prefixPolyLength - 1,    // [out] path
-		(int*)&suffixPolyLength,
-		MAX_PATH_LENGTH - prefixPolyLength); // max number of polygons in output path
+		m_filter);          // polygon search filter
+	if (!dtStatusFailed(dtResult))
+	{
+		int doneIters = 0;
+		do
+		{
+			dtResult = m_navMeshQuery->updateSlicedFindPath(10000, &doneIters);
+		} while (dtStatusInProgress(dtResult));
+
+		if (!dtStatusFailed(dtResult))
+		{
+			dtResult = m_navMeshQuery->finalizeSlicedFindPath(
+				m_pathPolyRefs + prefixPolyLength - 1,    // [out] path
+				(int*)&suffixPolyLength,
+				MAX_PATH_LENGTH - prefixPolyLength); // max number of polygons in output path
+		}
+	}
 		if (!suffixPolyLength || dtStatusFailed(dtResult))
 		{
 			// this is probably an error state, but we'll leave it
@@ -381,15 +394,28 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 		// free and invalidate old path data
 		clear();
 
-	dtResult = m_navMeshQuery->findPath(
+	dtResult = m_navMeshQuery->initSlicedFindPath(
 		startPoly,          // start polygon
 		endPoly,            // end polygon
 		startPoint,         // start position
 		endPoint,           // end position
-		m_filter,           // polygon search filter
-		m_pathPolyRefs,     // [out] path
-		(int*)&m_polyLength,
-		MAX_PATH_LENGTH);   // max number of polygons in output path
+		m_filter);          // polygon search filter
+	if (!dtStatusFailed(dtResult))
+	{
+		int doneIters = 0;
+		do
+		{
+			dtResult = m_navMeshQuery->updateSlicedFindPath(10000, &doneIters);
+		} while (dtStatusInProgress(dtResult));
+
+		if (!dtStatusFailed(dtResult))
+		{
+			dtResult = m_navMeshQuery->finalizeSlicedFindPath(
+				m_pathPolyRefs,     // [out] path
+				(int*)&m_polyLength,
+				MAX_PATH_LENGTH);   // max number of polygons in output path
+		}
+	}
 		ApplyDtStatus(dtResult, NAV_STEP_UPDATE_PATHFIND);
 		if (!m_polyLength || dtStatusFailed(dtResult))
 		{

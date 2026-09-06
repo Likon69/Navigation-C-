@@ -150,7 +150,7 @@ private:
 	const unsigned int      m_mapId;       // map id
 	const unsigned int      m_instanceId;       // instance id
 	const dtNavMesh*        m_navMesh;          // the nav mesh
-	const dtNavMeshQuery*   m_navMeshQuery;     // the nav mesh query used to find the path
+	dtNavMeshQuery*         m_navMeshQuery;     // the nav mesh query used to find the path
 
 
 	void setStartPosition(const Vector3 &point) { m_startPosition = point; }
