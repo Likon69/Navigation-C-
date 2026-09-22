@@ -32,6 +32,7 @@
 #include "PathFinder.h"
 #include "OffMeshManager.h"
 #include "Navigation.h"
+#include "NavBridge.h"
 
 #include <iostream>
 #include <fstream>
@@ -360,6 +361,15 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 		do
 		{
 			dtResult = m_navMeshQuery->updateSlicedFindPath(10000, &doneIters);
+
+			// Let the managed side abandon a search that has run too long
+			// (Honorbuddy's PathFindProgressEventArgs.Cancel). Only asked between
+			// slices, so a search that is already finished is never cancelled.
+			if (dtStatusInProgress(dtResult) && !NavBridge_ReportPathFindProgress())
+			{
+				dtResult = DT_FAILURE;
+				break;
+			}
 		} while (dtStatusInProgress(dtResult));
 
 		if (!dtStatusFailed(dtResult))
@@ -406,6 +416,15 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 		do
 		{
 			dtResult = m_navMeshQuery->updateSlicedFindPath(10000, &doneIters);
+
+			// Let the managed side abandon a search that has run too long
+			// (Honorbuddy's PathFindProgressEventArgs.Cancel). Only asked between
+			// slices, so a search that is already finished is never cancelled.
+			if (dtStatusInProgress(dtResult) && !NavBridge_ReportPathFindProgress())
+			{
+				dtResult = DT_FAILURE;
+				break;
+			}
 		} while (dtStatusInProgress(dtResult));
 
 		if (!dtStatusFailed(dtResult))

@@ -105,6 +105,22 @@ NAV_API void SetTileLoadedCallback_C(NavBridgeTileLoadedCallback callback);
 typedef void (__stdcall *NavLogCallbackFn)(const char* msg);
 NAV_API void SetNavLogCallback_C(NavLogCallbackFn callback);
 
+// Pathfind progress callback — fires between the sliced A* iterations inside
+// PathFinder, so the managed side can abandon a search that has run too long.
+// This is what backs Honorbuddy's WowNavigator.OnPathFindProgress /
+// PathFindProgressEventArgs.Cancel: MeshNavigator.Nav_OnPathFindProgress cancels a
+// pathfind still running after 4 seconds while the player is in combat or the bot
+// has been stopped. HB kept that behaviour through 6.2.3, so it is reproduced here.
+// Same registration pattern as SetNavLogCallback_C.
+// Return false to cancel the search, true to let it continue. Timing is left to the
+// caller, which owns the clock exactly as HB's navigator did.
+typedef bool (__stdcall *NavPathFindProgressFn)(void);
+NAV_API void SetPathFindProgressCallback_C(NavPathFindProgressFn callback);
+
+// Internal, not exported: invoked by PathFinder between search slices. Returns true
+// when no callback is registered, so an absent callback never cancels anything.
+bool NavBridge_ReportPathFindProgress(void);
+
 // Filter flag accessors
 NAV_API unsigned short GetIncludeFlags_C(void);
 NAV_API unsigned short GetExcludeFlags_C(void);

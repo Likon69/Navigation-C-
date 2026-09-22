@@ -562,6 +562,27 @@ NAV_API void SetNavLogCallback_C(NavLogCallbackFn callback)
 }
 
 // -------------------------------------------------------------------
+// Pathfind progress callback — lets the managed side cancel a long search.
+// Backs Honorbuddy's WowNavigator.OnPathFindProgress / PathFindProgressEventArgs.Cancel;
+// see the note in NavBridge.h. Same pattern as SetNavLogCallback_C.
+// -------------------------------------------------------------------
+static NavPathFindProgressFn g_pathFindProgressCallback = nullptr;
+
+NAV_API void SetPathFindProgressCallback_C(NavPathFindProgressFn callback)
+{
+    g_pathFindProgressCallback = callback;
+}
+
+bool NavBridge_ReportPathFindProgress(void)
+{
+    // No callback registered: never cancel.
+    if (!g_pathFindProgressCallback)
+        return true;
+
+    return g_pathFindProgressCallback();
+}
+
+// -------------------------------------------------------------------
 // Filter flag accessors
 // -------------------------------------------------------------------
 NAV_API unsigned short GetIncludeFlags_C(void)
