@@ -769,6 +769,25 @@ NAV_API const void* GetTile_C(unsigned int mapId, int i)
     return nav->GetTile(mapId, i);
 }
 
+NAV_API int GetTilePolys_C(unsigned int mapId, int x, int y, uint64_t* outRefs, int maxRefs)
+{
+    // DT_POLYREF64 is defined for this project, so dtPolyRef is already 64 bits and
+    // ToExternalRef is the identity cast. Asserted rather than assumed: if that ever
+    // changes, this fails at compile time instead of handing C# truncated refs.
+    static_assert(sizeof(dtPolyRef) == sizeof(uint64_t), "dtPolyRef must be 64-bit (DT_POLYREF64)");
+
+    if (!outRefs || maxRefs <= 0) return 0;
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav) return 0;
+    return nav->GetTilePolys(mapId, x, y, reinterpret_cast<dtPolyRef*>(outRefs), maxRefs);
+}
+
+NAV_API int GetAdtSubTiles_C(unsigned int mapId, int x, int y, int* outX, int* outY, int maxTiles)
+{
+    Navigation* nav = Navigation::GetInstance();
+    return nav ? nav->GetAdtSubTiles(mapId, x, y, outX, outY, maxTiles) : 0;
+}
+
 NAV_API int GetTileStateSize_C(unsigned int mapId, const void* tile)
 {
     Navigation* nav = Navigation::GetInstance();

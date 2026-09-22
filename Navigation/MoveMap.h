@@ -106,6 +106,9 @@ namespace MMAP
 		bool loadMap(unsigned int mapId, int x, int y);
 		bool unloadTile(unsigned int mapId, int x, int y);
 		bool isTileLoaded(unsigned int mapId, int x, int y) const;
+		// Detour (x, y) of each sub-tile loaded from the ADT file (x, y): up to 16 for
+		// V5 4x4 mmtiles, 1 for V4. Returns how many were written.
+		int getAdtSubTiles(unsigned int mapId, int x, int y, int* outX, int* outY, int maxTiles) const;
 
 		// Phase C: returns the number of ADT tiles loaded for a map.
 		// Each ADT contains up to 16 Detour sub-tiles (V5 4x4 format), so this differs

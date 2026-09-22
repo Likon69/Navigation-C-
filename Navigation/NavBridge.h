@@ -157,6 +157,13 @@ NAV_API int GetMaxTiles_C(unsigned int mapId);
 // HB 6.2.3 NavMesh.GetTile* — returns an opaque tile handle (IntPtr on the C# side)
 NAV_API const void* GetTileAt_C(unsigned int mapId, int x, int y);
 NAV_API const void* GetTile_C(unsigned int mapId, int i);
+// HB 6.2.3 MeshTile.GetAllPolys — enumerates the polygon refs of the tile at (x, y),
+// since the handle above is opaque to C#. Returns how many refs were written.
+NAV_API int GetTilePolys_C(unsigned int mapId, int x, int y, uint64_t* outRefs, int maxRefs);
+// HB 5.4.8 WowNavigator.OnSubTileLoaded — one ADT file holds up to 16 Detour tiles
+// whose (x, y) depend on the map's mesh origin; returns the Detour (x, y) of each
+// sub-tile loaded from ADT (x, y). Returns how many were written.
+NAV_API int GetAdtSubTiles_C(unsigned int mapId, int x, int y, int* outX, int* outY, int maxTiles);
 // HB 6.2.3 NavMesh tile state save/restore — tile is the handle from GetTileAt/GetTile
 NAV_API int  GetTileStateSize_C(unsigned int mapId, const void* tile);
 NAV_API unsigned int StoreTileState_C(unsigned int mapId, const void* tile, unsigned char* outData, int maxDataSize);

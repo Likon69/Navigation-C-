@@ -524,6 +524,36 @@ namespace MMAP
 		return mapIt->second->mmapLoadedTiles.find(packedGridPos) != mapIt->second->mmapLoadedTiles.end();
 	}
 
+	int MMapManager::getAdtSubTiles(unsigned int mapId, int x, int y, int* outX, int* outY, int maxTiles) const
+	{
+		if (!outX || !outY || maxTiles <= 0)
+			return 0;
+
+		auto mapIt = loadedMMaps.find(mapId);
+		if (mapIt == loadedMMaps.end())
+			return 0;
+
+		const MMapData* mmap = mapIt->second;
+		unsigned int packedGridPos = (static_cast<unsigned int>(x) << 16) | static_cast<unsigned int>(y);
+		auto it = mmap->mmapLoadedTiles.find(packedGridPos);
+		if (it == mmap->mmapLoadedTiles.end())
+			return 0;
+
+		int written = 0;
+		for (dtTileRef tileRef : it->second)
+		{
+			if (tileRef == 0 || written >= maxTiles)
+				continue;
+			const dtMeshTile* tile = mmap->navMesh->getTileByRef(tileRef);
+			if (!tile || !tile->header)
+				continue;
+			outX[written] = tile->header->x;
+			outY[written] = tile->header->y;
+			++written;
+		}
+		return written;
+	}
+
 	int MMapManager::getLoadedAdtCount(unsigned int mapId) const
 	{
 		auto mapIt = loadedMMaps.find(mapId);

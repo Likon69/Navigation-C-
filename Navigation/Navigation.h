@@ -81,6 +81,13 @@ public:
     const void* GetTileAt(unsigned int mapId, int x, int y);
     const void* GetTile(unsigned int mapId, int i);
 
+    // HB 6.2.3 MeshTile.GetAllPolys — the tile handle above is opaque to C#, so the
+    // polygon refs of the tile at (x, y) are enumerated here instead. Writes at most
+    // maxRefs refs into outRefs and returns how many were written; 0 when the tile is
+    // not loaded. Backs BGBuddy's IsleOfConquest/StrandOfTheAncients gate logic, which
+    // walks a tile's polys and rewrites their flags as gates are destroyed.
+    int GetTilePolys(unsigned int mapId, int x, int y, dtPolyRef* outRefs, int maxRefs);
+
     // HB 6.2.3 NavMesh tile state save/restore — tile is the opaque pointer
     // returned by GetTileAt/GetTile. mapId is needed to resolve the dtNavMesh
     // instance (Detour's getTileStateSize/storeTileState are dtNavMesh methods,
@@ -125,6 +132,9 @@ public:
     
     // Tile management optimisÃ© (comme Honorbuddy)
     bool IsTileLoaded(unsigned int mapId, int x, int y);
+    // Detour (x, y) of the sub-tiles loaded from the ADT file (x, y) — backs
+    // WowNavigator.OnSubTileLoaded, whose tile coords feed back into GetTileAt/GetTilePolys.
+    int GetAdtSubTiles(unsigned int mapId, int x, int y, int* outX, int* outY, int maxTiles);
     bool UnloadTile(unsigned int mapId, int x, int y);
     int GetLoadedTilesCount(unsigned int mapId);
 

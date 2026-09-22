@@ -997,6 +997,32 @@ const void* Navigation::GetTile(unsigned int mapId, int i)
     return navMesh->getTile(i);
 }
 
+int Navigation::GetTilePolys(unsigned int mapId, int x, int y, dtPolyRef* outRefs, int maxRefs)
+{
+    if (!outRefs || maxRefs <= 0)
+        return 0;
+
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    const dtNavMesh* navMesh = manager->GetNavMesh(mapId);
+    if (!navMesh)
+        return 0;
+
+    // Single-layer V4 mmtiles, same as GetTileAt.
+    const dtMeshTile* tile = navMesh->getTileAt(x, y, 0);
+    if (!tile || !tile->header)
+        return 0;
+
+    // Detour's own idiom: a tile's polys are consecutive refs from the tile base.
+    const dtPolyRef base = navMesh->getPolyRefBase(tile);
+    const int polyCount = tile->header->polyCount;
+
+    int written = 0;
+    for (int i = 0; i < polyCount && written < maxRefs; ++i)
+        outRefs[written++] = base | static_cast<dtPolyRef>(i);
+
+    return written;
+}
+
 int Navigation::GetTileStateSize(unsigned int mapId, const void* tile)
 {
     if (!tile) return 0;
@@ -1438,6 +1464,12 @@ bool Navigation::IsTileLoaded(unsigned int mapId, int x, int y)
 {
     MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
     return manager && manager->isTileLoaded(mapId, x, y);
+}
+
+int Navigation::GetAdtSubTiles(unsigned int mapId, int x, int y, int* outX, int* outY, int maxTiles)
+{
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    return manager ? manager->getAdtSubTiles(mapId, x, y, outX, outY, maxTiles) : 0;
 }
 
 bool Navigation::UnloadTile(unsigned int mapId, int x, int y)
