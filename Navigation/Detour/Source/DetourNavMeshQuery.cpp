@@ -3618,6 +3618,17 @@ dtStatus dtNavMeshQuery::findDistanceToWall(dtPolyRef startRef, const float* cen
 			hitPos[0] = vj[0] + (vi[0] - vj[0])*tseg;
 			hitPos[1] = vj[1] + (vi[1] - vj[1])*tseg;
 			hitPos[2] = vj[2] + (vi[2] - vj[2])*tseg;
+			if (dtVequal(hitPos, centerPos))
+			{
+				dtVsub(hitNormal, vi, vj);
+				hitNormal[1] = 0;
+				dtVnormalize(hitNormal);
+				const float tmp = hitNormal[0];
+				hitNormal[0] = hitNormal[2];
+				hitNormal[2] = -tmp;
+				*hitDist = 0;
+				return status;
+			}
 		}
 		
 		for (unsigned int i = bestPoly->firstLink; i != DT_NULL_LINK; i = bestTile->links[i].next)
