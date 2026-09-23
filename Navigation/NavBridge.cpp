@@ -854,3 +854,53 @@ NAV_API unsigned int Raycast_HB_C(unsigned int mapId, uint64_t startRef,
     return status;
 }
 
+
+NAV_API unsigned int FindPolyPath_C(unsigned int mapId, uint64_t startRef, uint64_t endRef,
+                                    XYZ_C startPos, XYZ_C endPos,
+                                    uint64_t* outPath, int* outPathCount, int maxPath)
+{
+    if (outPathCount) *outPathCount = 0;
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav || !outPath || !outPathCount || maxPath <= 0)
+        return 0x80000000u; // DT_FAILURE
+
+    std::vector<dtPolyRef> pathBuf(static_cast<size_t>(maxPath), 0);
+    int pathCount = 0;
+    unsigned int status = nav->FindPolyPath(mapId, ToInternalRef(startRef), ToInternalRef(endRef),
+        ToNative(startPos), ToNative(endPos), pathBuf.data(), &pathCount, maxPath);
+
+    const int copyCount = (pathCount < maxPath) ? pathCount : maxPath;
+    for (int i = 0; i < copyCount; ++i)
+        outPath[i] = ToExternalRef(pathBuf[i]);
+    *outPathCount = copyCount;
+    return status;
+}
+
+NAV_API unsigned int FindStraightPath_C(unsigned int mapId, XYZ_C startPos, XYZ_C endPos,
+                                        const uint64_t* path, int pathCount,
+                                        XYZ_C* outPoints, unsigned char* outFlags, uint64_t* outRefs,
+                                        int* outCount, int maxPoints)
+{
+    if (outCount) *outCount = 0;
+    Navigation* nav = Navigation::GetInstance();
+    if (!nav || !path || pathCount <= 0 || !outPoints || !outCount || maxPoints <= 0)
+        return 0x80000000u; // DT_FAILURE
+
+    std::vector<dtPolyRef> corridor(static_cast<size_t>(pathCount), 0);
+    for (int i = 0; i < pathCount; ++i)
+        corridor[i] = ToInternalRef(path[i]);
+
+    std::vector<XYZ> points(static_cast<size_t>(maxPoints));
+    std::vector<dtPolyRef> refs(static_cast<size_t>(maxPoints), 0);
+    int count = 0;
+    unsigned int status = nav->FindStraightPath(mapId, ToNative(startPos), ToNative(endPos),
+        corridor.data(), pathCount, points.data(), outFlags, refs.data(), &count, maxPoints);
+
+    for (int i = 0; i < count; ++i)
+    {
+        ToCStruct(points[i], &outPoints[i]);
+        if (outRefs) outRefs[i] = ToExternalRef(refs[i]);
+    }
+    *outCount = count;
+    return status;
+}

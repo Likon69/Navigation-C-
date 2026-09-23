@@ -175,6 +175,19 @@ NAV_API unsigned int Raycast_HB_C(unsigned int mapId, uint64_t startRef,
                                    float* outT, XYZ_C* outHitNormal,
                                    uint64_t* outPath, int* outPathCount, int maxPath);
 
+// HB NavMeshQuery.FindPath - polygon corridor from startRef to endRef (positions in WoW coordinates).
+// Returns dtStatus; outPath receives up to maxPath uint64_t poly refs.
+NAV_API unsigned int FindPolyPath_C(unsigned int mapId, uint64_t startRef, uint64_t endRef,
+                                    XYZ_C startPos, XYZ_C endPos,
+                                    uint64_t* outPath, int* outPathCount, int maxPath);
+
+// HB NavMeshQuery.FindStraightPath - straight path points along a polygon corridor (WoW coordinates).
+// outFlags/outRefs are optional; returns dtStatus.
+NAV_API unsigned int FindStraightPath_C(unsigned int mapId, XYZ_C startPos, XYZ_C endPos,
+                                        const uint64_t* path, int pathCount,
+                                        XYZ_C* outPoints, unsigned char* outFlags, uint64_t* outRefs,
+                                        int* outCount, int maxPoints);
+
 #ifdef __cplusplus
 }
 #endif

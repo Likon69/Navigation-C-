@@ -1752,3 +1752,60 @@ void Navigation::EnsureTilesDirectional(unsigned int mapId, XYZ position, XYZ ve
         manager->loadMap(mapId, prefetchX, prefetchY);
     }
 }
+
+unsigned int Navigation::FindPolyPath(unsigned int mapId, dtPolyRef startRef, dtPolyRef endRef, XYZ startPos, XYZ endPos,
+    dtPolyRef* outPath, int* outPathCount, int maxPath)
+{
+    if (outPathCount)
+        *outPathCount = 0;
+    if (!outPath || !outPathCount || maxPath <= 0)
+        return DT_FAILURE | DT_INVALID_PARAM;
+
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    EnsureTiles(mapId, startPos, 1);
+    EnsureTiles(mapId, endPos, 1);
+
+    const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
+    if (!query) return DT_FAILURE;
+
+    float start[3];
+    float end[3];
+    WoWToDetour(startPos, start);
+    WoWToDetour(endPos, end);
+
+    int pathCount = 0;
+    dtStatus status = query->findPath(startRef, endRef, start, end, &_defaultFilter, outPath, &pathCount, maxPath);
+    *outPathCount = pathCount;
+    return status;
+}
+
+unsigned int Navigation::FindStraightPath(unsigned int mapId, XYZ startPos, XYZ endPos, const dtPolyRef* path, int pathCount,
+    XYZ* outPoints, unsigned char* outFlags, dtPolyRef* outRefs, int* outCount, int maxPoints)
+{
+    if (outCount)
+        *outCount = 0;
+    if (!path || pathCount <= 0 || !outPoints || !outCount || maxPoints <= 0)
+        return DT_FAILURE | DT_INVALID_PARAM;
+
+    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
+    EnsureTiles(mapId, startPos, 1);
+    EnsureTiles(mapId, endPos, 1);
+
+    const dtNavMeshQuery* query = manager->GetNavMeshQuery(mapId, 1);
+    if (!query) return DT_FAILURE;
+
+    float start[3];
+    float end[3];
+    WoWToDetour(startPos, start);
+    WoWToDetour(endPos, end);
+
+    std::vector<float> points(static_cast<size_t>(maxPoints) * 3, 0.0f);
+    int count = 0;
+    dtStatus status = query->findStraightPath(start, end, path, pathCount,
+        points.data(), outFlags, outRefs, &count, maxPoints, 0);
+
+    for (int i = 0; i < count; ++i)
+        DetourToWoW(&points[static_cast<size_t>(i) * 3], outPoints[i]);
+    *outCount = count;
+    return status;
+}

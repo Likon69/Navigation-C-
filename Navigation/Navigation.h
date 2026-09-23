@@ -63,6 +63,14 @@ public:
     unsigned int Raycast(unsigned int mapId, dtPolyRef startRef, XYZ startPos, XYZ endPos,
         float* outT, XYZ* outHitNormal, dtPolyRef* outPath, int* outPathCount, int maxPath);
 
+    // HB NavMeshQuery.FindPath - polygon corridor between two polys (dtNavMeshQuery::findPath)
+    unsigned int FindPolyPath(unsigned int mapId, dtPolyRef startRef, dtPolyRef endRef, XYZ startPos, XYZ endPos,
+        dtPolyRef* outPath, int* outPathCount, int maxPath);
+
+    // HB NavMeshQuery.FindStraightPath - points along a polygon corridor (dtNavMeshQuery::findStraightPath)
+    unsigned int FindStraightPath(unsigned int mapId, XYZ startPos, XYZ endPos, const dtPolyRef* path, int pathCount,
+        XYZ* outPoints, unsigned char* outFlags, dtPolyRef* outRefs, int* outCount, int maxPoints);
+
     // HB 6.2.3 NavMesh.GetMaxTiles
     int GetMaxTiles(unsigned int mapId);
 
