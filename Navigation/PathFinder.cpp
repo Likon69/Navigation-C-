@@ -260,6 +260,11 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 
 		BuildShortcut();
 
+		m_straightPathRefs = { startPoly, 0 };
+		m_straightPathFlags = { StraightPathFlags::Start, StraightPathFlags::End };
+		m_polyTypes = { ResolveAreaType(startPoly), ResolveAreaType(startPoly) };
+		m_abilityFlags = { ResolveAbilityFlags(startPoly), ResolveAbilityFlags(startPoly) };
+
 		m_pathPolyRefs[0] = startPoly;
 		m_polyLength = 1;
 
